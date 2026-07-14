@@ -310,6 +310,7 @@ DIRETRIZES DE ROTEAMENTO (Avalie a intenção do usuário e retorne APENAS um JS
 2. Se o usuário pedir para mudar de POV (Ponto de Vista): Acione o "Gestor de Transição de Consciência".
 3. Se o usuário introduzir um nome ou conceito completamente novo: Acione o "Arquiteto de Dados Relacionais" e o "Alocador de Personagens".
 4. Se o usuário iniciar uma história do zero absoluto: Acione o "Criador de Gênesis".
+5. Se a ação do usuário fraturar a linha temporal (viagem no tempo, decisão que gera universo paralelo, alteração/reset da realidade): a intenção é "Ramificar" — acione o "Guardião dos Paradoxos".
 
 [INPUT DO USUÁRIO]: ${texto}
 [ESTADO ATUAL DA INTERFACE]: ${estado}`,
@@ -433,6 +434,98 @@ PRIMEIRA MEMÓRIA: ${alocPov?.payload_de_inicializacao?.primeira_memoria_registr
       return Response.json({ roteamento, storyId: newStory.id, alocacoes: alocacoesGenesis, grafo: grafoGenesis });
     }
 
+    // ----- Guardião dos Paradoxos: bifurcação da linha temporal -----
+    let paradoxo = null;
+    if (roteamento.intencao_usuario === 'Ramificar') {
+      paradoxo = await sdk.integrations.Core.InvokeLLM({
+        prompt: `Você é o Guardião dos Paradoxos. O usuário acaba de realizar uma ação que fraturou a linha temporal (Viagem no tempo, decisão que gera universo paralelo, alteração da realidade).
+
+SUA TAREFA:
+Definir como os Superagentes devem tratar as memórias a partir deste milissegundo. Você precisa emitir o comando de "bifurcação" (Fork) para o banco de dados.
+
+DIRETRIZES DE BIFURCAÇÃO:
+1. Se for uma nova dimensão: Instrua o sistema a clonar os perfis dos personagens envolvidos e adicionar uma tag [Variante: Nome_do_Novo_Universo].
+2. Isolamento: A partir de agora, as memórias do "Personagem Variante" evoluirão de forma completamente separada do original.
+3. Em "personagens_a_serem_clonados_como_variantes", use os NOMES exatos dos personagens listados no estado do mundo.
+
+[AÇÃO QUE CAUSOU O PARADOXO]: "${texto}"
+[ESTADO DO MUNDO ANTES DO PARADOXO]: ${estado}`,
+        response_json_schema: {
+          type: 'object',
+          properties: {
+            tipo_de_paradoxo: { type: 'string', enum: ['Viagem_no_Tempo', 'Universo_Paralelo', 'Reset_de_Realidade'] },
+            id_nova_linha_temporal: { type: 'string', description: 'Identificador único, ex: Timeline_B_Rebeliao' },
+            personagens_a_serem_clonados_como_variantes: { type: 'array', items: { type: 'string' } },
+            novas_regras_temporais: { type: 'string', description: 'Como essa nova linha do tempo diverge da original' },
+            instrucoes_de_isolamento: { type: 'string', description: 'Regra estrita para que os Superagentes não cruzem dados entre a Timeline A e a Timeline B' }
+          },
+          required: ['tipo_de_paradoxo', 'id_nova_linha_temporal', 'personagens_a_serem_clonados_como_variantes', 'novas_regras_temporais', 'instrucoes_de_isolamento']
+        }
+      });
+
+      // Executa o comando de Fork no banco de dados
+      const novoUni = await sdk.entities.Universe.create({
+        name: paradoxo.id_nova_linha_temporal,
+        rules: `${universe.rules || ''} | DIVERGÊNCIA (${paradoxo.tipo_de_paradoxo}): ${paradoxo.novas_regras_temporais} | ISOLAMENTO: ${paradoxo.instrucoes_de_isolamento}`
+      });
+      const alvos = paradoxo.personagens_a_serem_clonados_como_variantes || [];
+      let aClonar = characters.filter((c) => alvos.includes(c.name) || alvos.includes(c.id));
+      if (!aClonar.length) aClonar = characters.filter((c) => (story.characters_in_scene || []).includes(c.name));
+      const clones = await sdk.entities.Character.bulkCreate(aClonar.map((c) => ({
+        universe_id: novoUni.id,
+        name: c.name,
+        description: `${c.description || ''}\n[Variante: ${novoUni.name}]`.trim(),
+        psychological_state: c.psychological_state || null,
+        superagente_id: c.superagente_id || null,
+        motivo_alocacao: 'Clonagem por bifurcação temporal',
+        tracos_iniciais: c.tracos_iniciais || [],
+        primeira_memoria: c.primeira_memoria || null,
+        memoria_core: c.memoria_core || [],
+        eventos_historicos: c.eventos_historicos || null
+      })));
+
+      // Nova história na linha bifurcada
+      const novaStory = await sdk.entities.Story.create({
+        universe_id: novoUni.id,
+        title: `${story.title} — ${novoUni.name}`,
+        timeline_summary: `Bifurcação (${paradoxo.tipo_de_paradoxo}) a partir de "${story.title}". ${paradoxo.novas_regras_temporais}`,
+        current_pov_character_id: clones.find((c) => c.name === story.current_pov_name)?.id || null,
+        current_pov_name: story.current_pov_name,
+        characters_in_scene: clones.map((c) => c.name),
+        era_inicial: story.data_hora_atual || story.era_inicial,
+        clima_inicial: story.clima_atual || story.clima_inicial,
+        data_hora_atual: story.data_hora_atual,
+        cenario_atual: story.cenario_atual,
+        clima_atual: story.clima_atual
+      });
+
+      // Cópia das memórias até o milissegundo do fork (a partir daqui, evolução isolada)
+      await Promise.all(aClonar.map(async (orig) => {
+        const clone = clones.find((c) => c.name === orig.name);
+        if (!clone) return;
+        const mems = await sdk.entities.CharacterMemory.filter({ character_id: orig.id }, 'created_date', 500);
+        if (mems.length) {
+          await sdk.entities.CharacterMemory.bulkCreate(mems.map((m) => ({
+            character_id: clone.id,
+            character_name: clone.name,
+            superagente_id: clone.superagente_id || null,
+            story_id: novaStory.id,
+            content: m.content
+          })));
+        }
+      }));
+
+      // Marca a fratura na história original e redireciona o pipeline para a nova linha
+      await sdk.entities.NarrativeBlock.create({
+        story_id: story.id,
+        type: 'SYSTEM',
+        content: `⧉ Paradoxo detectado (${paradoxo.tipo_de_paradoxo}): a realidade bifurcou para a linha "${novoUni.name}". ${paradoxo.novas_regras_temporais}`
+      });
+      universe = novoUni;
+      story = novaStory;
+      characters = clones;
+    }
+
     // ----- Superagentes Hospedeiros: reações reais de TODOS os personagens em cena -----
     const contextoCena = `${texto} | Cenário: ${story.cenario_atual || '?'} | Clima: ${story.clima_atual || '?'} | Momento: ${story.data_hora_atual || '?'}`;
     const emCena = characters.filter((c) => (story.characters_in_scene || []).includes(c.name) || c.name === story.current_pov_name);
@@ -544,7 +637,8 @@ VARIÁVEIS INJETADAS PELO SISTEMA BASE 44:
 [PERSONAGEM POV]: ${povNarrativa || 'narrador onisciente'}
 ${paragrafoTransicao ? `[PARÁGRAFO DE ATERRISSAGEM DO GESTOR DE TRANSIÇÃO DE CONSCIÊNCIA — a prosa DEVE começar exatamente com este parágrafo e continuar a partir dele]:
 ${paragrafoTransicao}` : ''}
-[VEREDICTO DO ÁRBITRO DE CONSEQUÊNCIAS — a prosa DEVE respeitar rigorosamente este desfecho; a ação do usuário NÃO acontece automaticamente como ele quis]:
+${paradoxo ? `[FRATURA TEMPORAL — GUARDIÃO DOS PARADOXOS]: A realidade acaba de bifurcar (${paradoxo.tipo_de_paradoxo}) para a linha "${universe.name}". Divergência: ${paradoxo.novas_regras_temporais}. A prosa deve evidenciar organicamente essa fratura da realidade.
+` : ''}[VEREDICTO DO ÁRBITRO DE CONSEQUÊNCIAS — a prosa DEVE respeitar rigorosamente este desfecho; a ação do usuário NÃO acontece automaticamente como ele quis]:
 - Status da ação: ${veredicto.status_da_acao}
 - O que realmente acontece: ${veredicto.descricao_do_desfecho}
 - Reação dos NPCs: ${veredicto.reacao_dos_npcs}
@@ -642,7 +736,7 @@ ESTADO GLOBAL ATUAL: momento "${atual.data_ou_hora_aproximada}", cenário "${atu
 NOTAS DO SINCRONIZADOR PARA O GRAFO: ${sincronizacao.notas_para_o_grafo}
 PERSONAGENS E AGENTES BASE44: ${characters.map((c) => `${c.name} → ${c.superagente_id || '?'}`).join('; ')}`);
 
-    return Response.json({ roteamento, storyId: story.id, alocacoes, veredicto, sincronizacao, grafo, compactacoes });
+    return Response.json({ roteamento, storyId: story.id, alocacoes, paradoxo, veredicto, sincronizacao, grafo, compactacoes });
   } catch (error) {
     return Response.json({ error: error.message }, { status: 500 });
   }

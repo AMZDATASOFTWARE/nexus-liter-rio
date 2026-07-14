@@ -45,6 +45,9 @@ export default function StoryPage() {
       });
       if (isNew && res.data?.storyId) {
         navigate(`/historia/${res.data.storyId}`, { replace: true });
+      } else if (res.data?.storyId && res.data.storyId !== id) {
+        // Paradoxo: a realidade bifurcou para uma nova linha temporal
+        navigate(`/historia/${res.data.storyId}`);
       } else {
         queryClient.invalidateQueries({ queryKey: ["blocks", id] });
         queryClient.invalidateQueries({ queryKey: ["story", id] });
