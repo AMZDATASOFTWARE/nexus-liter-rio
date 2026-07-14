@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useRef } from "react";
+import React, { useMemo, useState, useRef, useEffect } from "react";
 import { computeLayout, TIPO_CORES } from "./graphUtils";
 
 export default function ForceGraph({ nodes, edges, selectedId, onSelect, render, width = 1200, height = 800 }) {
@@ -14,27 +14,57 @@ export default function ForceGraph({ nodes, edges, selectedId, onSelect, render,
   const [view, setView] = useState({ x: 0, y: 0, k: 1 });
   const drag = useRef(null);
 
+  // Impede a página de rolar enquanto o usuário dá zoom no grafo
+  useEffect(() => {
+    const svg = svgRef.current;
+    if (!svg) return;
+    const block = (e) => e.preventDefault();
+    svg.addEventListener("wheel", block, { passive: false });
+    return () => svg.removeEventListener("wheel", block);
+  }, []);
+
+  // Converte coordenadas do mouse (tela) em coordenadas do viewBox do SVG
+  const toSvgPoint = (clientX, clientY) => {
+    const svg = svgRef.current;
+    const ctm = svg?.getScreenCTM();
+    if (!svg || !ctm) return null;
+    const pt = svg.createSVGPoint();
+    pt.x = clientX;
+    pt.y = clientY;
+    return pt.matrixTransform(ctm.inverse());
+  };
+
+  const clampView = (v) => {
+    if (![v.x, v.y, v.k].every(Number.isFinite)) return { x: 0, y: 0, k: 1 };
+    const k = Math.min(5, Math.max(0.3, v.k));
+    // Mantém o conteúdo sempre parcialmente visível
+    const x = Math.min(width * 0.9, Math.max(-width * k + width * 0.1, v.x));
+    const y = Math.min(height * 0.9, Math.max(-height * k + height * 0.1, v.y));
+    return { x, y, k };
+  };
+
   const onWheel = (e) => {
-    e.preventDefault();
-    const rect = svgRef.current.getBoundingClientRect();
-    const px = ((e.clientX - rect.left) / rect.width) * width;
-    const py = ((e.clientY - rect.top) / rect.height) * height;
+    const p = toSvgPoint(e.clientX, e.clientY);
+    if (!p) return;
     setView((v) => {
-      const k = Math.min(8, Math.max(0.2, v.k * (e.deltaY < 0 ? 1.12 : 1 / 1.12)));
-      return { k, x: px - ((px - v.x) / v.k) * k, y: py - ((py - v.y) / v.k) * k };
+      const k = Math.min(5, Math.max(0.3, v.k * (e.deltaY < 0 ? 1.12 : 1 / 1.12)));
+      return clampView({ k, x: p.x - ((p.x - v.x) / v.k) * k, y: p.y - ((p.y - v.y) / v.k) * k });
     });
   };
   const onPointerDown = (e) => {
-    drag.current = { sx: e.clientX, sy: e.clientY, vx: view.x, vy: view.y, moved: false };
+    const p = toSvgPoint(e.clientX, e.clientY);
+    if (!p) return;
+    drag.current = { px: p.x, py: p.y, vx: view.x, vy: view.y, moved: false };
     e.currentTarget.setPointerCapture(e.pointerId);
   };
   const onPointerMove = (e) => {
     if (!drag.current) return;
-    const rect = svgRef.current.getBoundingClientRect();
-    const dx = ((e.clientX - drag.current.sx) / rect.width) * width;
-    const dy = ((e.clientY - drag.current.sy) / rect.height) * height;
+    const p = toSvgPoint(e.clientX, e.clientY);
+    if (!p) return;
+    const dx = p.x - drag.current.px;
+    const dy = p.y - drag.current.py;
     if (Math.abs(dx) > 2 || Math.abs(dy) > 2) drag.current.moved = true;
-    setView((v) => ({ ...v, x: drag.current.vx + dx, y: drag.current.vy + dy }));
+    setView((v) => clampView({ k: v.k, x: drag.current.vx + dx, y: drag.current.vy + dy }));
   };
   const onPointerUp = () => {
     drag.current = null;
