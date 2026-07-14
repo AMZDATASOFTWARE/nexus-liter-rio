@@ -5,6 +5,7 @@ import { base44 } from "@/api/base44Client";
 import { motion } from "framer-motion";
 import { Sparkles, BookOpen, ArrowRight, BookMarked } from "lucide-react";
 import GlitchWrapper from "@/components/GlitchWrapper";
+import GlitchSound from "@/components/GlitchSound";
 
 export default function Home() {
   const { data: stories = [], isLoading } = useQuery({
@@ -19,6 +20,7 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-[#08080f] text-zinc-100">
+      <GlitchSound />
       <div className="max-w-3xl mx-auto px-6 py-20 md:py-28">
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="text-center space-y-6">
           <GlitchWrapper>

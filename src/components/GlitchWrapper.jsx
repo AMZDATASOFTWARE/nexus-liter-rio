@@ -17,6 +17,9 @@ export default function GlitchWrapper({ children, className = "", delay = 0 }) {
       el.style.setProperty("--g-ghost2", `${(-lado * r(3, 16)).toFixed(1)}px`);
       el.style.setProperty("--g-op", r(0.55, 0.9).toFixed(2));
       el.style.animationDuration = `${r(2.6, 4.6).toFixed(2)}s`; // calmaria variável entre glitches
+      // Avisa o motor de som com a intensidade deste glitch (fantasma distante = glitch forte)
+      const ghost = Math.abs(parseFloat(el.style.getPropertyValue("--g-ghost")));
+      window.dispatchEvent(new CustomEvent("glitch-burst", { detail: { intensity: (ghost - 3) / 13 } }));
     };
     randomize();
     el.addEventListener("animationiteration", randomize);
