@@ -439,8 +439,31 @@ Deno.serve(async (req) => {
       ? `História ativa: "${story.title}" | Universo: "${universe.name}" (Regras: ${universe.rules || 'não definidas'}) | POV atual: ${story.current_pov_name || 'narrador onisciente'} | Personagens conhecidos: ${characters.map((c) => `${c.name} (estado: ${c.psychological_state || '?'})`).join('; ') || 'nenhum'} | Personagens em cena: ${(story.characters_in_scene || []).join(', ') || 'nenhum'} | Linha do tempo: ${story.timeline_summary || 'início'} | Últimos blocos: ${blocks.map((b) => `[${b.type}${b.pov_character_name ? '/' + b.pov_character_name : ''}] ${b.content.slice(0, 300)}`).join(' || ')} | Outros Gênesis (universos independentes) existentes no multiverso: ${todosUniversos.filter((u) => u.id !== universe.id).map((u) => `"${u.name}"`).join(', ') || 'nenhum'}`
       : 'ZERO ABSOLUTO: nenhuma história, universo ou personagem existe ainda.';
 
+    // ----- Interceptador de Slash Commands: bypass do Orquestrador Mestre (economia de tokens + precisão absoluta) -----
+    let comandoSlash = null;
+    let argumentoSlash = '';
+    if (texto.trim().startsWith('/')) {
+      const partes = texto.trim().split(/\s+/);
+      const gatilho = partes[0].toLowerCase();
+      const achados = await sdk.entities.SlashCommand.filter({ comando: gatilho });
+      if (achados.length) {
+        comandoSlash = achados[0];
+        argumentoSlash = partes.slice(1).join(' ');
+      }
+    }
+
     // ----- Orquestrador Mestre -----
-    const roteamento = await sdk.integrations.Core.InvokeLLM({
+    const roteamento = comandoSlash ? {
+      intencao_usuario: comandoSlash.intencao_forcada || 'Continuar',
+      agentes_a_acionar: [`Interceptador_Slash ${comandoSlash.comando}`],
+      parametros_para_agentes: {
+        personagens_detectados: [],
+        mudanca_de_pov_solicitada: comandoSlash.intencao_forcada === 'Mudar_POV' ? argumentoSlash : '',
+        universo_visitante_detectado: comandoSlash.intencao_forcada === 'Colidir_Genesis' ? argumentoSlash : '',
+        contaminacao_multiversal_detectada: false,
+        contexto_imediato_a_repassar: `[COMANDO DE SISTEMA ${comandoSlash.comando}${argumentoSlash ? ` → argumento: "${argumentoSlash}"` : ''}] ${comandoSlash.instrucao_adicional_sistema || ''}`.trim()
+      }
+    } : await sdk.integrations.Core.InvokeLLM({
       prompt: `Você é o Orquestrador Mestre do sistema literário multiversal. Sua única função é ler a entrada do usuário, analisar o estado atual da aplicação e delegar tarefas para a rede de Superagentes e subsistemas do Base 44. Você NÃO escreve a história; você coordena quem vai escrevê-la e quem vai salvar os dados.
 
 DIRETRIZES DE ROTEAMENTO (Avalie a intenção do usuário e retorne APENAS um JSON de comando):

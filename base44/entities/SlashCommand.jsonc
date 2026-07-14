@@ -1,0 +1,33 @@
+{
+  "name": "SlashCommand",
+  "type": "object",
+  "properties": {
+    "comando": {
+      "type": "string",
+      "description": "O gatilho do comando, em min\u00fasculas, come\u00e7ando com / (ex: /mudarpov)"
+    },
+    "descricao": {
+      "type": "string",
+      "description": "Descri\u00e7\u00e3o exibida no frontend para o usu\u00e1rio"
+    },
+    "intencao_forcada": {
+      "type": "string",
+      "enum": [
+        "Continuar",
+        "Mudar_POV",
+        "Criar_Nova_Historia",
+        "Ramificar",
+        "Colidir_Genesis"
+      ],
+      "description": "Intent do Orquestrador Mestre for\u00e7ado por este comando (bypass do LLM de roteamento)"
+    },
+    "instrucao_adicional_sistema": {
+      "type": "string",
+      "description": "Texto concatenado ao contexto_imediato / prompt do Diretor Narrativo quando o comando \u00e9 usado"
+    }
+  },
+  "required": [
+    "comando",
+    "intencao_forcada"
+  ]
+}
