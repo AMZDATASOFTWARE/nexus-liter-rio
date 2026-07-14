@@ -1101,7 +1101,6 @@ ${viajantes.filter((v) => v.diretriz_comportamental).map((v) => `- ${v.name} (ad
 - Diretriz de narração: ${veredicto.diretriz_para_o_diretor_narrativo}
 [RESPOSTAS DOS SUPERAGENTES (REACÕES/MEMÓRIAS)]:
 ${dadosAgentesEmCena}
-[RITMO DA CENA — DIRETOR DE CINEMA (pesos de 0 a 100 definidos pelo usuário; distribua o foco da prosa PROPORCIONALMENTE a estes pesos — peso 0 significa quase ausência do elemento, peso alto significa dominância)]: Ação (movimento, combate, resolução física): ${ritmoAtual.peso_acao} | Diálogo (interações verbais, discussões): ${ritmoAtual.peso_dialogo} | Introspecção (monólogos internos, medos, emoções): ${ritmoAtual.peso_introspeccao} | Ambientação (clima, iluminação, cheiros, texturas): ${ritmoAtual.peso_ambientacao}
 [CLIMA/ANO/LINHA TEMPORAL]: Universo "${universe.name}" | ${story.data_hora_atual || story.era_inicial || '?'} | Cenário: ${story.cenario_atual || '?'} | Clima: ${story.clima_atual || story.clima_inicial || '?'} | Linha do tempo: ${story.timeline_summary || 'início'}
 [ESTADO ATUAL]: ${estado}
 [CONTEXTO DO ORQUESTRADOR]: ${params.contexto_imediato_a_repassar || ''}${conhecimento}
