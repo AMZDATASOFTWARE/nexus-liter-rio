@@ -6,6 +6,7 @@ import { ArrowLeft, Loader2, Users, Network } from "lucide-react";
 import BlockItem from "@/components/narrative/BlockItem";
 import Composer from "@/components/narrative/Composer";
 import CharacterPanel from "@/components/narrative/CharacterPanel";
+import ByokPromptPanel from "@/components/narrative/ByokPromptPanel";
 
 export default function StoryPage() {
   const { id } = useParams();
@@ -14,6 +15,7 @@ export default function StoryPage() {
   const queryClient = useQueryClient();
   const [sending, setSending] = useState(false);
   const [showChars, setShowChars] = useState(false);
+  const [byokPrompt, setByokPrompt] = useState(null);
   const bottomRef = useRef(null);
 
   const { data: story } = useQuery({
@@ -36,13 +38,15 @@ export default function StoryPage() {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [blocks.length]);
 
-  const send = async (texto) => {
+  const send = async (texto, modoByok) => {
     setSending(true);
     try {
       const res = await base44.functions.invoke("orquestrador", {
         texto,
         storyId: isNew ? null : id,
+        modoByok: !isNew && !!modoByok,
       });
+      if (res.data?.system_prompt_master) setByokPrompt(res.data.system_prompt_master);
       if (isNew && res.data?.storyId) {
         navigate(`/historia/${res.data.storyId}`, { replace: true });
       } else if (res.data?.storyId && res.data.storyId !== id) {
@@ -118,9 +122,11 @@ export default function StoryPage() {
 
       <div className="fixed bottom-0 inset-x-0 z-20 bg-gradient-to-t from-[#08080f] via-[#08080f]/95 to-transparent pt-10 pb-5 px-5">
         <div className="max-w-3xl mx-auto">
-          <Composer onSend={send} sending={sending} placeholder={isNew ? "Dite o início da história..." : "Continue a narrativa, mude o POV ou introduza algo novo..."} />
+          <Composer onSend={send} sending={sending} allowByok={!isNew} placeholder={isNew ? "Dite o início da história..." : "Continue a narrativa, mude o POV ou introduza algo novo..."} />
         </div>
       </div>
+
+      {byokPrompt && <ByokPromptPanel prompt={byokPrompt} onClose={() => setByokPrompt(null)} />}
     </div>
   );
 }

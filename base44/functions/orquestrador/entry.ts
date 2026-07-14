@@ -279,7 +279,7 @@ Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
     const sdk = base44.asServiceRole;
-    const { texto, storyId } = await req.json();
+    const { texto, storyId, modoByok } = await req.json();
     if (!texto) return Response.json({ error: 'texto é obrigatório' }, { status: 400 });
 
     // ----- Estado atual da aplicação -----
@@ -310,7 +310,7 @@ DIRETRIZES DE ROTEAMENTO (Avalie a intenção do usuário e retorne APENAS um JS
 2. Se o usuário pedir para mudar de POV (Ponto de Vista): Acione o "Gestor de Transição de Consciência".
 3. Se o usuário introduzir um nome ou conceito completamente novo: Acione o "Arquiteto de Dados Relacionais" e o "Alocador de Personagens".
 4. Se o usuário iniciar uma história do zero absoluto: Acione o "Criador de Gênesis".
-5. Se a ação do usuário fraturar a linha temporal (viagem no tempo, decisão que gera universo paralelo, alteração/reset da realidade): a intenção é "Ramificar" — acione o "Guardião dos Paradoxos".
+5. Se a ação do usuário fraturar a linha temporal (viagem no tempo, decisão que gera universo paralelo, alteração/reset da realidade): a intenção é "Ramificar" — acione o "Guardião dos Paradoxos". ATENÇÃO: use "Ramificar" APENAS quando o INPUT ATUAL do usuário causar uma NOVA fratura. Continuar narrando dentro de uma linha temporal que já foi bifurcada anteriormente é "Continuar", nunca "Ramificar".
 
 [INPUT DO USUÁRIO]: ${texto}
 [ESTADO ATUAL DA INTERFACE]: ${estado}`,
@@ -620,6 +620,43 @@ Escreva apenas o parágrafo literário de transição (aterrissagem de consciên
       paragrafoTransicao = transicao.paragrafo;
     }
     const povNarrativa = houveSaltoPov ? novoPovChar.name : story.current_pov_name;
+
+    // ----- Adaptador BYOK: converte o turno em System Prompt Master para IA externa -----
+    if (modoByok) {
+      const jsonTurno = JSON.stringify({
+        universo: { nome: universe.name, regras: universe.rules || 'não definidas' },
+        historia: { titulo: story.title, linha_do_tempo: story.timeline_summary || 'início' },
+        estado_global: { momento: story.data_hora_atual || story.era_inicial || '?', cenario: story.cenario_atual || '?', clima: story.clima_atual || story.clima_inicial || '?' },
+        pov_ativo: povNarrativa || 'narrador onisciente',
+        paragrafo_de_transicao_de_consciencia: paragrafoTransicao,
+        fratura_temporal: paradoxo ? { tipo: paradoxo.tipo_de_paradoxo, nova_linha: universe.name, divergencia: paradoxo.novas_regras_temporais } : null,
+        personagens_em_cena: emCena.map((c) => ({ nome: c.name, estado_psicologico: c.psychological_state || '?', tracos: c.tracos_iniciais || [], perfil: c.description || '?' })),
+        respostas_dos_superagentes: reacoes.map((r) => ({ personagem: r.nome, pov: r.isPov, reacao: r.resposta })),
+        veredicto_do_arbitro: veredicto,
+        acao_do_usuario: texto,
+        ultimos_blocos: blocks.map((b) => ({ tipo: b.type, pov: b.pov_character_name || null, conteudo: b.content.slice(0, 400) }))
+      }, null, 2);
+      const adaptacao = await sdk.integrations.Core.InvokeLLM({
+        prompt: `Você é o Adaptador BYOK (Bring Your Own Key). O Orquestrador Base 44 acaba de reunir todas as respostas dos Superagentes, o estado do grafo e as informações do POV. Sua função é ler esse grande JSON estruturado e redigir o "System Prompt Master" perfeito em texto corrido (Markdown), para ser enviado à IA externa do usuário, garantindo que ela escreva a próxima cena com perfeição e de acordo com o contexto global.
+
+AÇÃO:
+Converta o JSON recebido em um manual de instruções focado, imersivo e sem jargões de programação, explicando à IA externa EXATAMENTE o que ela deve escrever agora, qual o tom, quem está na cena e o que cada NPC está sentindo/fazendo (baseado na resposta dos nossos Superagentes).
+
+A IA externa receberá seu output como instrução de sistema.
+
+[DADOS INTERNOS DO BASE 44 (JSON)]:
+${jsonTurno}
+
+Escreva o System Prompt formatado em Markdown, começando com "Você é o autor desta narrativa. As regras do universo atual são..."`,
+        response_json_schema: {
+          type: 'object',
+          properties: { system_prompt_master: { type: 'string', description: 'System Prompt em Markdown para a IA externa' } },
+          required: ['system_prompt_master']
+        }
+      });
+      await sdk.entities.NarrativeBlock.create({ story_id: story.id, type: 'USER', content: texto });
+      return Response.json({ roteamento, storyId: story.id, paradoxo, veredicto, system_prompt_master: adaptacao.system_prompt_master });
+    }
 
     // ----- Orquestrador Narrativo Principal -----
     const resultado = await sdk.integrations.Core.InvokeLLM({
