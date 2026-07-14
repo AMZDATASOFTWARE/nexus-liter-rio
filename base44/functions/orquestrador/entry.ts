@@ -136,6 +136,34 @@ Responda assumindo a primeira pessoa (${isPov ? 'este personagem É o POV atual'
   });
 }
 
+// ----- Módulo de Quarentena Narrativa: estado de choque de viajantes em Gênesis alienígena -----
+async function quarentenaNarrativa(sdk, character, universoNatal, cenarioNovoMundo) {
+  const dadosViajante = `${character.name} — Universo natal: "${universoNatal.name}" (Leis do mundo natal: ${universoNatal.rules || 'não definidas'}) | Perfil: ${character.description || '?'} | Estado psicológico: ${character.psychological_state || '?'} | Traços base: ${(character.tracos_iniciais || []).join(', ') || '?'} | Memória core (convicções/cicatrizes): ${(character.memoria_core || []).join('; ') || 'nenhuma'} | Histórico: ${character.eventos_historicos || 'nenhum'}`;
+  return await sdk.integrations.Core.InvokeLLM({
+    prompt: `Você é o Módulo de Quarentena Narrativa do Base 44, acoplado temporariamente ao Superagente do ${character.name}. Seu personagem acaba de ser ejetado de seu universo natal e aterrissou em um "Gênesis" completamente desconhecido.
+
+DIRETRIZES DE ESTADO DE CHOQUE:
+1. Ignorância Absoluta: O personagem NÃO tem conhecimento prévio sobre as leis, facções, locais ou história deste novo Gênesis. Bloqueie qualquer tentativa da IA principal de fazê-lo "entender" a situação rapidamente.
+2. Filtro Perceptivo: Todas as reações do personagem devem usar metáforas de seu mundo natal para tentar explicar o inexplicável. (Ex: Um mago vendo um carro pela primeira vez o descreverá como um 'besouro de metal com olhos de luz').
+3. Trauma e Sobrevivência: Atualize a memória de curto prazo do personagem focando no desespero de estar isolado ou na curiosidade científica, dependendo de seus traços base.
+
+FORMATO DE SAÍDA:
+Retorne APENAS a reação interna (pensamentos, medos e percepção sensorial imediata) do ${character.name} ao olhar para o novo ambiente, utilizando estritamente a ótica do seu universo de origem.
+
+[PERFIL DO PERSONAGEM VIAJANTE]: ${dadosViajante}
+[DESCRIÇÃO DO NOVO AMBIENTE (GÊNESIS ALIENÍGENA)]: ${cenarioNovoMundo}`,
+    response_json_schema: {
+      type: 'object',
+      properties: {
+        reacao_interna: { type: 'string', description: 'Pensamentos, medos e percepção sensorial imediata, pela ótica do universo natal' },
+        memoria_de_curto_prazo: { type: 'string', description: 'Memória subjetiva do choque de travessia (desespero de isolamento ou curiosidade científica, conforme os traços base)' },
+        estado_psicologico_atualizado: { type: 'string', description: 'Novo estado psicológico do viajante após o choque' }
+      },
+      required: ['reacao_interna', 'memoria_de_curto_prazo', 'estado_psicologico_atualizado']
+    }
+  });
+}
+
 // ----- Arquiteto de Dados Relacionais: transforma o turno em nós e arestas do megagrafo -----
 async function arquitetoDeGrafos(sdk, universeId, dadosBrutos) {
   const [nosExistentes, arestasExistentes] = await Promise.all([
@@ -531,6 +559,7 @@ DIRETRIZES DE BIFURCAÇÃO:
 
     // ----- Colisor de Gênesis: leis de intersecção entre duas raízes narrativas -----
     let colisao = null;
+    let quarentenas = [];
     if (roteamento.intencao_usuario === 'Colidir_Genesis') {
       const nomeVisitante = params.universo_visitante_detectado || '';
       const visitante = todosUniversos.find((u) => u.id !== universe.id && (u.name === nomeVisitante || nomeVisitante.includes(u.name) || (nomeVisitante.length > 3 && u.name.includes(nomeVisitante))));
@@ -609,6 +638,24 @@ DIRETRIZES DE COLISÃO:
               })));
             }
           }));
+          // Módulo de Quarentena Narrativa: estado de choque dos viajantes recém-aterrissados
+          const cenarioNovoMundo = `Universo anfitrião "${universe.name}" (Leis: ${universe.rules || 'não definidas'}) | Cenário atual: ${story.cenario_atual || '?'} | Clima: ${story.clima_atual || '?'} | Momento: ${story.data_hora_atual || '?'} | Evento de chegada: "${colisao.evento_de_colisao}" | Atmosfera do ponto de encontro: ${colisao.atmosfera_hibrida} | O que acaba de acontecer: ${texto}`;
+          quarentenas = await Promise.all(clonesVisitantes.map(async (clone) => {
+            const q = await quarentenaNarrativa(sdk, clone, visitante, cenarioNovoMundo);
+            await Promise.all([
+              sdk.entities.CharacterMemory.create({
+                character_id: clone.id,
+                character_name: clone.name,
+                superagente_id: clone.superagente_id || null,
+                story_id: story.id,
+                content: `[Choque de travessia — Quarentena Narrativa] ${q.memoria_de_curto_prazo}`
+              }),
+              sdk.entities.Character.update(clone.id, { psychological_state: q.estado_psicologico_atualizado })
+            ]);
+            clone.psychological_state = q.estado_psicologico_atualizado;
+            return { nome: clone.name, reacao_interna: q.reacao_interna };
+          }));
+
           characters = characters.concat(clonesVisitantes);
           const novaCena = [...new Set([...(story.characters_in_scene || []), ...clonesVisitantes.map((c) => c.name)])];
           await sdk.entities.Story.update(story.id, { characters_in_scene: novaCena });
@@ -742,6 +789,7 @@ Escreva apenas o parágrafo literário de transição (aterrissagem de consciên
         paragrafo_de_transicao_de_consciencia: paragrafoTransicao,
         fratura_temporal: paradoxo ? { tipo: paradoxo.tipo_de_paradoxo, nova_linha: universe.name, divergencia: paradoxo.novas_regras_temporais } : null,
         colisao_de_genesis: colisao,
+        quarentena_narrativa_viajantes: quarentenas.length ? quarentenas : null,
         personagens_em_cena: emCena.map((c) => ({ nome: c.name, estado_psicologico: c.psychological_state || '?', tracos: c.tracos_iniciais || [], perfil: c.description || '?' })),
         respostas_dos_superagentes: reacoes.map((r) => ({ personagem: r.nome, pov: r.isPov, reacao: r.resposta })),
         veredicto_do_arbitro: veredicto,
@@ -767,7 +815,7 @@ Escreva o System Prompt formatado em Markdown, começando com "Você é o autor 
         }
       });
       await sdk.entities.NarrativeBlock.create({ story_id: story.id, type: 'USER', content: texto });
-      return Response.json({ roteamento, storyId: story.id, paradoxo, colisao, veredicto, system_prompt_master: adaptacao.system_prompt_master });
+      return Response.json({ roteamento, storyId: story.id, paradoxo, colisao, quarentenas, veredicto, system_prompt_master: adaptacao.system_prompt_master });
     }
 
     // ----- Orquestrador Narrativo Principal -----
@@ -788,6 +836,8 @@ ${paragrafoTransicao ? `[PARÁGRAFO DE ATERRISSAGEM DO GESTOR DE TRANSIÇÃO DE 
 ${paragrafoTransicao}` : ''}
 ${paradoxo ? `[FRATURA TEMPORAL — GUARDIÃO DOS PARADOXOS]: A realidade acaba de bifurcar (${paradoxo.tipo_de_paradoxo}) para a linha "${universe.name}". Divergência: ${paradoxo.novas_regras_temporais}. A prosa deve evidenciar organicamente essa fratura da realidade.
 ` : ''}${colisao ? `[COLISÃO DE GÊNESIS — COLISOR DE GÊNESIS]: O evento "${colisao.evento_de_colisao}" acaba de conectar os universos ${(colisao.universos_envolvidos || []).join(' ⨯ ')}. LEIS DE INTERSECÇÃO obrigatórias na prosa: COMBATE — ${colisao.leis_de_interseccao.regra_de_combate} | COMUNICAÇÃO — ${colisao.leis_de_interseccao.regra_de_comunicacao}. ATMOSFERA HÍBRIDA (tom estético mandatório): ${colisao.atmosfera_hibrida}
+` : ''}${quarentenas.length ? `[MÓDULO DE QUARENTENA NARRATIVA — viajantes em estado de choque. REGRAS OBRIGATÓRIAS na prosa: estes personagens têm IGNORÂNCIA ABSOLUTA sobre as leis, facções, locais e história deste Gênesis — é PROIBIDO fazê-los "entender" a situação rapidamente; todas as percepções deles devem usar metáforas do mundo natal para explicar o inexplicável]:
+${quarentenas.map((q) => `- ${q.nome}: ${q.reacao_interna}`).join('\n')}
 ` : ''}[VEREDICTO DO ÁRBITRO DE CONSEQUÊNCIAS — a prosa DEVE respeitar rigorosamente este desfecho; a ação do usuário NÃO acontece automaticamente como ele quis]:
 - Status da ação: ${veredicto.status_da_acao}
 - O que realmente acontece: ${veredicto.descricao_do_desfecho}
@@ -886,7 +936,7 @@ ESTADO GLOBAL ATUAL: momento "${atual.data_ou_hora_aproximada}", cenário "${atu
 NOTAS DO SINCRONIZADOR PARA O GRAFO: ${sincronizacao.notas_para_o_grafo}
 PERSONAGENS E AGENTES BASE44: ${characters.map((c) => `${c.name} → ${c.superagente_id || '?'}`).join('; ')}`);
 
-    return Response.json({ roteamento, storyId: story.id, alocacoes, paradoxo, colisao, veredicto, sincronizacao, grafo, compactacoes });
+    return Response.json({ roteamento, storyId: story.id, alocacoes, paradoxo, colisao, quarentenas, veredicto, sincronizacao, grafo, compactacoes });
   } catch (error) {
     return Response.json({ error: error.message }, { status: 500 });
   }
