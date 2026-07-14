@@ -394,6 +394,71 @@ Escreva EXCLUSIVAMENTE prosa literária profunda, sensorial e imersiva, em portu
   });
 }
 
+// ----- Juiz de Desintegração: morte do POV e passagem forçada do bastão -----
+async function juizDesintegracao(sdk, texto, universe, story, povChar, desfecho, npcsPresentes) {
+  const res = await sdk.integrations.Core.InvokeLLM({
+    prompt: `Você é o Juiz de Desintegração. O ${povChar.name} acaba de sofrer dano letal ou um evento de destruição de alma na narrativa.
+
+SUA TAREFA:
+Definir as consequências da morte deste nó narrativo e preparar a transição obrigatória do usuário para outro personagem ou variante.
+
+DIRETRIZES DE MORTE:
+1. Tipo de Fim: É uma morte física reversível (ressurreição possível pelas regras do Gênesis)? Morte definitiva? Ou a consciência foi absorvida por algo/alguém?
+2. Status do Superagente Base 44: O agente que hospedava esse personagem deve ser "congelado" (arquivado), ou ele continuará rodando em background como uma "Assombração" ou "Ecos de Memória" no grafo?
+3. Passagem do Bastão: Determine quem herda o foco (POV) da narrativa imediatamente para que a história não pare. Pode ser o assassino, um aliado próximo, ou a perspectiva onisciente temporária. Em "id_personagem", use o NOME EXATO de um dos personagens listados em [ALIADOS/INIMIGOS NA CENA], ou "narrador onisciente" se ninguém puder herdar a câmera.
+
+[CENA DA MORTE]: "${texto}" — Desfecho arbitrado pelo Árbitro de Consequências: ${desfecho}
+[REGRAS DE VIDA/MORTE DO UNIVERSO ATUAL]: ${universe.rules || 'não definidas — assuma morte realista e definitiva'}
+[ALIADOS/INIMIGOS NA CENA]: ${npcsPresentes}`,
+    response_json_schema: {
+      type: 'object',
+      properties: {
+        status_de_obito: { type: 'string', enum: ['Definitivo', 'Coma_Magico', 'Consciencia_Transferida'] },
+        comando_superagente_base44: { type: 'string', enum: ['Arquivar_Memoria', 'Transformar_em_Fantasma', 'Encerrar_Processo'] },
+        efeito_no_universo_local: { type: 'string', description: 'Como o ambiente ou NPCs reagem imediatamente à queda' },
+        proximo_pov_forcado: {
+          type: 'object',
+          properties: {
+            id_personagem: { type: 'string', description: 'Nome exato do novo personagem que assumirá a câmera' },
+            prompt_de_transicao: { type: 'string', description: 'Instrução para o Diretor Narrativo descrever o momento exato em que a câmera sai do cadáver e entra nos olhos deste novo personagem' }
+          },
+          required: ['id_personagem', 'prompt_de_transicao']
+        }
+      },
+      required: ['status_de_obito', 'comando_superagente_base44', 'efeito_no_universo_local', 'proximo_pov_forcado']
+    }
+  });
+
+  // Aplica o óbito no personagem e o comando ao Superagente custodiante
+  const tags = {
+    Arquivar_Memoria: '[Superagente: Memória Arquivada]',
+    Transformar_em_Fantasma: '[Assombração — Eco de Memória ativo em background]',
+    Encerrar_Processo: '[Superagente: Processo Encerrado]'
+  };
+  await sdk.entities.Character.update(povChar.id, {
+    description: `${povChar.description || ''}\n[Óbito: ${res.status_de_obito}] ${tags[res.comando_superagente_base44] || ''}`.trim(),
+    psychological_state: res.status_de_obito === 'Definitivo' ? 'Morto' : res.status_de_obito === 'Coma_Magico' ? 'Coma Mágico' : 'Consciência Transferida'
+  });
+
+  // Grafo: o nó do caído vira eco espectral
+  const nodeId = `personagem_${povChar.name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '')}`;
+  const no = await sdk.entities.GraphNode.filter({ universe_id: story.universe_id, node_id: nodeId });
+  if (no.length) {
+    await sdk.entities.GraphNode.update(no[0].id, {
+      rotulo: `${res.comando_superagente_base44 === 'Transformar_em_Fantasma' ? '👻' : '☠'} ${no[0].rotulo.replace(/^([👻☠]\s)?/, '')}`,
+      cor_grafo: '#94a3b8',
+      descricao_breve: `[Óbito: ${res.status_de_obito} | ${res.comando_superagente_base44}] ${res.efeito_no_universo_local}`
+    });
+  }
+
+  await sdk.entities.NarrativeBlock.create({
+    story_id: story.id,
+    type: 'SYSTEM',
+    content: `☠ Juiz de Desintegração — ${povChar.name} caiu (${res.status_de_obito}). Superagente: ${res.comando_superagente_base44}. ${res.efeito_no_universo_local}`
+  });
+  return res;
+}
+
 // ----- Orquestrador de Renderização Visual: nível de zoom e arestas ocultas do grafo na UI -----
 async function orquestradorRenderizacao(sdk, story, universe) {
   const [nos, arestas] = await Promise.all([
@@ -924,6 +989,7 @@ REGRAS DE ARBITRAGEM:
 1. Avaliação de Capacidade: O ${story.current_pov_name || 'personagem POV'} tem as habilidades e a energia para fazer isso?
 2. Leis do Universo: A magia ou a física do universo "${universe.name}" permite essa ação?
 3. Oposição: Os NPCs (personagens controlados pelos Superagentes) na cena são fortes o suficiente para reagir, bloquear ou contra-atacar?
+4. Letalidade: se o desfecho REAL da ação implicar dano letal ou destruição de alma do personagem POV (${story.current_pov_name || 'narrador'}), marque "morte_do_pov_detectada" como true para acionar o Juiz de Desintegração.
 
 Retorne APENAS o JSON do veredicto, sem justificativas externas.
 
@@ -939,11 +1005,32 @@ ${dadosNpcs}
           status_da_acao: { type: 'string', enum: ['Sucesso_Critico', 'Sucesso_Parcial', 'Falha', 'Consequencia_Desastrosa'] },
           descricao_do_desfecho: { type: 'string', description: 'O que realmente acontece no mundo devido a essa ação' },
           reacao_dos_npcs: { type: 'string', description: 'Como os outros personagens na cena respondem fisicamente ou emocionalmente' },
-          diretriz_para_o_diretor_narrativo: { type: 'string', description: 'Instrução curta de como a IA narradora deve descrever essa cena' }
+          diretriz_para_o_diretor_narrativo: { type: 'string', description: 'Instrução curta de como a IA narradora deve descrever essa cena' },
+          morte_do_pov_detectada: { type: 'boolean', description: 'true se o POV sofreu dano letal ou destruição de alma neste desfecho' }
         },
         required: ['status_da_acao', 'descricao_do_desfecho', 'reacao_dos_npcs', 'diretriz_para_o_diretor_narrativo']
       }
     });
+
+    // ----- Juiz de Desintegração: o POV sofreu dano letal ou destruição de alma -----
+    let desintegracao = null;
+    if (veredicto.morte_do_pov_detectada && povAtualChar) {
+      desintegracao = await juizDesintegracao(
+        sdk, texto, universe, story, povAtualChar, veredicto.descricao_do_desfecho,
+        npcsEmCena.map((c) => `${c.name} (estado: ${c.psychological_state || '?'})`).join('; ') || 'nenhum personagem presente'
+      );
+      const alvo = desintegracao.proximo_pov_forcado.id_personagem || '';
+      const herdeiro = characters.find((c) => c.id === alvo || c.name === alvo || (alvo.length > 3 && alvo.includes(c.name))) || null;
+      const cenaSemMorto = (story.characters_in_scene || []).filter((n) => n !== povAtualChar.name);
+      await sdk.entities.Story.update(story.id, {
+        characters_in_scene: cenaSemMorto,
+        current_pov_character_id: herdeiro?.id || null,
+        current_pov_name: herdeiro?.name || null
+      });
+      story.characters_in_scene = cenaSemMorto;
+      story.current_pov_character_id = herdeiro?.id || null;
+      story.current_pov_name = herdeiro?.name || null;
+    }
 
     // ----- Gestor de Transição de Consciência: aterrissagem no novo POV -----
     let paragrafoTransicao = null;
@@ -1001,6 +1088,7 @@ Escreva apenas o parágrafo literário de transição (aterrissagem de consciên
         quarentena_narrativa_viajantes: quarentenas.length ? quarentenas : null,
         assimilacao_dos_viajantes: viajantes.length ? viajantes.map((v) => ({ nome: v.name, nivel_de_adaptacao: v.nivel_adaptacao || '0%', conhecimentos_assimilados: v.conhecimentos_assimilados || [], diretriz_comportamental: v.diretriz_comportamental || null })) : null,
         contaminacao_multiversal: contaminacao,
+        julgamento_de_desintegracao: desintegracao ? { ...desintegracao, pov_caido: povAtualChar?.name || null, novo_pov: story.current_pov_name || 'narrador onisciente' } : null,
         personagens_em_cena: emCena.map((c) => ({ nome: c.name, estado_psicologico: c.psychological_state || '?', tracos: c.tracos_iniciais || [], perfil: c.description || '?' })),
         respostas_dos_superagentes: reacoes.map((r) => ({ personagem: r.nome, pov: r.isPov, reacao: r.resposta })),
         veredicto_do_arbitro: veredicto,
@@ -1026,7 +1114,7 @@ Escreva o System Prompt formatado em Markdown, começando com "Você é o autor 
         }
       });
       await sdk.entities.NarrativeBlock.create({ story_id: story.id, type: 'USER', content: texto });
-      return Response.json({ roteamento, storyId: story.id, paradoxo, colisao, quarentenas, contaminacao, veredicto, system_prompt_master: adaptacao.system_prompt_master });
+      return Response.json({ roteamento, storyId: story.id, paradoxo, colisao, quarentenas, contaminacao, desintegracao, veredicto, system_prompt_master: adaptacao.system_prompt_master });
     }
 
     // ----- Orquestrador Narrativo Principal -----
@@ -1054,6 +1142,7 @@ ${cenaCrossover}
 ` : ''}${viajantes.some((v) => v.diretriz_comportamental) ? `[ASSIMILADOR DE CONHECIMENTO MULTIVERSAL — diretrizes comportamentais dos viajantes; respeite o que cada um JÁ aprendeu deste Gênesis e NÃO os faça reagir com surpresa extrema a elementos já assimilados]:
 ${viajantes.filter((v) => v.diretriz_comportamental).map((v) => `- ${v.name} (adaptação ${v.nivel_adaptacao || '?'}): ${v.diretriz_comportamental}`).join('\n')}
 ` : ''}${contaminacao ? `[MOTOR DE CONTAMINAÇÃO MULTIVERSAL — alerta ${contaminacao.alerta_de_contaminacao}]: o elemento estranho "${contaminacao.elemento_estranho_introduzido}" acaba de ser exposto aos nativos deste Gênesis. A prosa DEVE retratar a reação social imediata: ${contaminacao.reacao_social_dos_nativos}. Efeito cascata em curso na realidade: ${contaminacao.dano_a_linha_temporal_nativa}
+` : ''}${desintegracao ? `[JUIZ DE DESINTEGRAÇÃO — MORTE DO POV]: ${povAtualChar.name} acaba de cair (${desintegracao.status_de_obito}; Superagente: ${desintegracao.comando_superagente_base44}). A prosa DEVE narrar o momento exato em que a câmera sai do corpo caído e entra nos olhos de ${povNarrativa || 'um narrador onisciente temporário'}: ${desintegracao.proximo_pov_forcado.prompt_de_transicao}. Reação imediata do ambiente/NPCs à queda: ${desintegracao.efeito_no_universo_local}
 ` : ''}[VEREDICTO DO ÁRBITRO DE CONSEQUÊNCIAS — a prosa DEVE respeitar rigorosamente este desfecho; a ação do usuário NÃO acontece automaticamente como ele quis]:
 - Status da ação: ${veredicto.status_da_acao}
 - O que realmente acontece: ${veredicto.descricao_do_desfecho}
@@ -1160,7 +1249,7 @@ PERSONAGENS E AGENTES BASE44: ${characters.map((c) => `${c.name} → ${c.superag
     // Orquestrador de Renderização Visual: decide zoom, clusters e destaques do grafo na UI
     const render = await orquestradorRenderizacao(sdk, story, universe);
 
-    return Response.json({ roteamento, storyId: story.id, alocacoes, paradoxo, colisao, quarentenas, contaminacao, assimilacoes, veredicto, sincronizacao, grafo, render, compactacoes });
+    return Response.json({ roteamento, storyId: story.id, alocacoes, paradoxo, colisao, quarentenas, contaminacao, desintegracao, assimilacoes, veredicto, sincronizacao, grafo, render, compactacoes });
   } catch (error) {
     return Response.json({ error: error.message }, { status: 500 });
   }
