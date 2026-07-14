@@ -55,6 +55,51 @@ ${novosPersonagens.map((p) => `[NOVO PERSONAGEM DETECTADO]: ${p.nome}\n[CONTEXTO
   return res.alocacoes || [];
 }
 
+// ----- Compactador de Memórias: comprime vivências antigas em convicções/cicatrizes -----
+const LIMITE_MEMORIAS = 20;
+const MEMORIAS_RECENTES_PRESERVADAS = 10;
+async function compactarMemorias(sdk, character) {
+  const memorias = await sdk.entities.CharacterMemory.filter({ character_id: character.id }, 'created_date', 500);
+  if (memorias.length <= LIMITE_MEMORIAS) return null;
+  const antigas = memorias.slice(0, memorias.length - MEMORIAS_RECENTES_PRESERVADAS);
+  const res = await sdk.integrations.Core.InvokeLLM({
+    prompt: `Você é o Compactador de Memórias do Base 44. Sua função é analisar o histórico bruto de vivências de um personagem e comprimi-lo, transformando eventos de curto e médio prazo em "Convicções", "Cicatrizes Psicológicas" ou "Habilidades Adquiridas", liberando espaço na memória de curto prazo do Superagente.
+
+DIRETRIZES DE COMPACTAÇÃO:
+1. Mantenha os Fatos Essenciais: Quem, o que, quando e onde. Ignore diálogos exatos e descrições climáticas antigas.
+2. Evolução Psicológica: Se o personagem sofreu 5 traições seguidas, você não precisa manter as 5 memórias completas. Compacte para: "Cicatriz: Desenvolveu paranoia severa e dificuldade de confiar em aliados devido a múltiplas traições entre os anos X e Y".
+3. Formato de Destino: O resultado substituirá as memórias antigas do personagem no banco de dados do Superagente. Se já existir uma memória core anterior, funda-a com as novas convicções (sem perder cicatrizes já consolidadas).
+
+[PERSONAGEM]: ${character.name} (ID: ${character.id}, custódia: ${character.superagente_id || 'não alocado'})
+[MEMÓRIA CORE JÁ CONSOLIDADA]: ${(character.memoria_core || []).join(' | ') || 'nenhuma'}
+[HISTÓRICO RESUMIDO ANTERIOR]: ${character.eventos_historicos || 'nenhum'}
+
+[MEMÓRIAS BRUTAS PARA COMPACTAR]:
+${antigas.map((m) => `- ${m.content}`).join('\n')}`,
+    response_json_schema: {
+      type: 'object',
+      properties: {
+        id_personagem: { type: 'string' },
+        memoria_core_atualizada: { type: 'array', items: { type: 'string' }, description: 'Convicções, Cicatrizes e Habilidades Adquiridas' },
+        eventos_historicos_resumidos: { type: 'string', description: 'Parágrafo denso e direto contendo apenas os fatos inalteráveis das últimas memórias' },
+        tokens_estimados_economizados: { type: 'string', description: 'Quantidade aproximada' }
+      },
+      required: ['id_personagem', 'memoria_core_atualizada', 'eventos_historicos_resumidos', 'tokens_estimados_economizados']
+    }
+  });
+  await sdk.entities.Character.update(character.id, {
+    memoria_core: res.memoria_core_atualizada,
+    eventos_historicos: res.eventos_historicos_resumidos
+  });
+  await Promise.all(antigas.map((m) => sdk.entities.CharacterMemory.delete(m.id)));
+  return {
+    personagem: character.name,
+    memorias_compactadas: antigas.length,
+    convicoes_geradas: res.memoria_core_atualizada.length,
+    tokens_estimados_economizados: res.tokens_estimados_economizados
+  };
+}
+
 // ----- Superagente Hospedeiro: personifica um personagem consultando apenas suas memórias isoladas -----
 async function invocarSuperagente(sdk, character, acaoRequerida, contextoAtual, isPov) {
   const memorias = await sdk.entities.CharacterMemory.filter({ character_id: character.id }, '-created_date', 15);
@@ -73,7 +118,11 @@ FORMATO DE REQUISIÇÃO:
 - Ação Requerida: ${acaoRequerida}
 - Contexto Atual: ${contextoAtual}
 
-MEMÓRIAS ISOLADAS DE ${character.name} (acesso exclusivo a esta chave):
+MEMÓRIA CORE DE ${character.name} (convicções, cicatrizes e habilidades consolidadas pelo Compactador de Memórias — moldam profundamente a psique):
+${(character.memoria_core || []).map((m) => `- ${m}`).join('\n') || '- (nenhuma consolidada ainda)'}
+Histórico compactado: ${character.eventos_historicos || '(nenhum)'}
+
+MEMÓRIAS RECENTES ISOLADAS DE ${character.name} (acesso exclusivo a esta chave):
 ${bancoMemoria}
 Perfil: ${character.description || '?'} | Estado psicológico: ${character.psychological_state || '?'} | Traços: ${(character.tracos_iniciais || []).join(', ') || '?'}
 
@@ -520,6 +569,12 @@ No campo "prosa", escreva a continuação literária direta, em português. Sem 
       .filter(Boolean);
     if (novasMemorias.length) await sdk.entities.CharacterMemory.bulkCreate(novasMemorias);
 
+    // Compactador de Memórias: comprime o histórico de quem estourou o limite
+    const idsComMemoriaNova = new Set(novasMemorias.map((m) => m.character_id));
+    const compactacoes = (
+      await Promise.all(characters.filter((c) => idsComMemoriaNova.has(c.id)).map((c) => compactarMemorias(sdk, c)))
+    ).filter(Boolean);
+
     // Sincronizador de Estado Global
     const estadoAnterior = `{ "linha_temporal_atual": "${universe.name}", "data_ou_hora_aproximada": "${story.data_hora_atual || story.era_inicial || 'desconhecida'}", "cenario_focado": "${story.cenario_atual || 'desconhecido'}", "condicao_climatica_atmosferica": "${story.clima_atual || story.clima_inicial || 'desconhecida'}" }`;
     const sincronizacao = await sincronizarEstadoGlobal(sdk, universe.name, resultado.prosa, estadoAnterior);
@@ -547,7 +602,7 @@ ESTADO GLOBAL ATUAL: momento "${atual.data_ou_hora_aproximada}", cenário "${atu
 NOTAS DO SINCRONIZADOR PARA O GRAFO: ${sincronizacao.notas_para_o_grafo}
 PERSONAGENS E AGENTES BASE44: ${characters.map((c) => `${c.name} → ${c.superagente_id || '?'}`).join('; ')}`);
 
-    return Response.json({ roteamento, storyId: story.id, alocacoes, sincronizacao, grafo });
+    return Response.json({ roteamento, storyId: story.id, alocacoes, sincronizacao, grafo, compactacoes });
   } catch (error) {
     return Response.json({ error: error.message }, { status: 500 });
   }

@@ -36,6 +36,17 @@
     "primeira_memoria": {
       "type": "string",
       "description": "Primeira mem\u00f3ria registrada \u2014 contexto de introdu\u00e7\u00e3o na cena"
+    },
+    "memoria_core": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Convic\u00e7\u00f5es, Cicatrizes Psicol\u00f3gicas e Habilidades Adquiridas geradas pelo Compactador de Mem\u00f3rias"
+    },
+    "eventos_historicos": {
+      "type": "string",
+      "description": "Par\u00e1grafo denso com os fatos inalter\u00e1veis das mem\u00f3rias antigas compactadas"
     }
   },
   "required": [
