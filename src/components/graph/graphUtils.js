@@ -5,6 +5,7 @@ export const TIPO_CORES = {
   LinhaTemporal: "#a78bfa",
   Memoria: "#f472b6",
   Objeto: "#facc15",
+  Nexus: "#f43f5e",
 };
 
 // Layout força-dirigido simples (estático): repulsão + molas nas arestas

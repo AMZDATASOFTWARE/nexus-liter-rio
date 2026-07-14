@@ -18,7 +18,8 @@
         "Clima",
         "LinhaTemporal",
         "Memoria",
-        "Objeto"
+        "Objeto",
+        "Nexus"
       ],
       "description": "Categoria do n\u00f3"
     },

@@ -283,13 +283,14 @@ Deno.serve(async (req) => {
     if (!texto) return Response.json({ error: 'texto é obrigatório' }, { status: 400 });
 
     // ----- Estado atual da aplicação -----
-    let story = null, universe = null, characters = [], blocks = [];
+    let story = null, universe = null, characters = [], blocks = [], todosUniversos = [];
     if (storyId) {
       story = await sdk.entities.Story.get(storyId);
       universe = await sdk.entities.Universe.get(story.universe_id);
       characters = await sdk.entities.Character.filter({ universe_id: story.universe_id });
       blocks = await sdk.entities.NarrativeBlock.filter({ story_id: storyId }, '-created_date', 8);
       blocks.reverse();
+      todosUniversos = await sdk.entities.Universe.list(undefined, 100);
     }
 
     const fontes = await sdk.entities.KnowledgeSource.list('-created_date', 10);
@@ -298,7 +299,7 @@ Deno.serve(async (req) => {
       : '';
 
     const estado = story
-      ? `História ativa: "${story.title}" | Universo: "${universe.name}" (Regras: ${universe.rules || 'não definidas'}) | POV atual: ${story.current_pov_name || 'narrador onisciente'} | Personagens conhecidos: ${characters.map((c) => `${c.name} (estado: ${c.psychological_state || '?'})`).join('; ') || 'nenhum'} | Personagens em cena: ${(story.characters_in_scene || []).join(', ') || 'nenhum'} | Linha do tempo: ${story.timeline_summary || 'início'} | Últimos blocos: ${blocks.map((b) => `[${b.type}${b.pov_character_name ? '/' + b.pov_character_name : ''}] ${b.content.slice(0, 300)}`).join(' || ')}`
+      ? `História ativa: "${story.title}" | Universo: "${universe.name}" (Regras: ${universe.rules || 'não definidas'}) | POV atual: ${story.current_pov_name || 'narrador onisciente'} | Personagens conhecidos: ${characters.map((c) => `${c.name} (estado: ${c.psychological_state || '?'})`).join('; ') || 'nenhum'} | Personagens em cena: ${(story.characters_in_scene || []).join(', ') || 'nenhum'} | Linha do tempo: ${story.timeline_summary || 'início'} | Últimos blocos: ${blocks.map((b) => `[${b.type}${b.pov_character_name ? '/' + b.pov_character_name : ''}] ${b.content.slice(0, 300)}`).join(' || ')} | Outros Gênesis (universos independentes) existentes no multiverso: ${todosUniversos.filter((u) => u.id !== universe.id).map((u) => `"${u.name}"`).join(', ') || 'nenhum'}`
       : 'ZERO ABSOLUTO: nenhuma história, universo ou personagem existe ainda.';
 
     // ----- Orquestrador Mestre -----
@@ -311,19 +312,21 @@ DIRETRIZES DE ROTEAMENTO (Avalie a intenção do usuário e retorne APENAS um JS
 3. Se o usuário introduzir um nome ou conceito completamente novo: Acione o "Arquiteto de Dados Relacionais" e o "Alocador de Personagens".
 4. Se o usuário iniciar uma história do zero absoluto: Acione o "Criador de Gênesis".
 5. Se a ação do usuário fraturar a linha temporal (viagem no tempo, decisão que gera universo paralelo, alteração/reset da realidade): a intenção é "Ramificar" — acione o "Guardião dos Paradoxos". ATENÇÃO: use "Ramificar" APENAS quando o INPUT ATUAL do usuário causar uma NOVA fratura. Continuar narrando dentro de uma linha temporal que já foi bifurcada anteriormente é "Continuar", nunca "Ramificar".
+6. Se a ação do usuário conectar a história atual a OUTRO Gênesis existente no multiverso (crossover: portal para outro universo listado, personagem/elemento de outro Gênesis invadindo a cena): a intenção é "Colidir_Genesis" — acione o "Colisor de Gênesis" e informe em "universo_visitante_detectado" o nome EXATO do universo visitante conforme listado no estado.
 
 [INPUT DO USUÁRIO]: ${texto}
 [ESTADO ATUAL DA INTERFACE]: ${estado}`,
       response_json_schema: {
         type: 'object',
         properties: {
-          intencao_usuario: { type: 'string', enum: ['Continuar', 'Mudar_POV', 'Criar_Nova_Historia', 'Ramificar'] },
+          intencao_usuario: { type: 'string', enum: ['Continuar', 'Mudar_POV', 'Criar_Nova_Historia', 'Ramificar', 'Colidir_Genesis'] },
           agentes_a_acionar: { type: 'array', items: { type: 'string' } },
           parametros_para_agentes: {
             type: 'object',
             properties: {
               personagens_detectados: { type: 'array', items: { type: 'string' } },
               mudanca_de_pov_solicitada: { type: 'string' },
+              universo_visitante_detectado: { type: 'string', description: 'Nome exato do Gênesis visitante em caso de Colidir_Genesis' },
               contexto_imediato_a_repassar: { type: 'string' }
             }
           }
@@ -526,6 +529,114 @@ DIRETRIZES DE BIFURCAÇÃO:
       characters = clones;
     }
 
+    // ----- Colisor de Gênesis: leis de intersecção entre duas raízes narrativas -----
+    let colisao = null;
+    if (roteamento.intencao_usuario === 'Colidir_Genesis') {
+      const nomeVisitante = params.universo_visitante_detectado || '';
+      const visitante = todosUniversos.find((u) => u.id !== universe.id && (u.name === nomeVisitante || nomeVisitante.includes(u.name) || (nomeVisitante.length > 3 && u.name.includes(nomeVisitante))));
+      if (visitante) {
+        const [charsVisitante, storiesVisitante] = await Promise.all([
+          sdk.entities.Character.filter({ universe_id: visitante.id }),
+          sdk.entities.Story.filter({ universe_id: visitante.id }, '-updated_date', 1)
+        ]);
+        const storyVis = storiesVisitante[0];
+        const metaA = `Universo "${universe.name}" | Leis: ${universe.rules || 'não definidas'} | História: "${story.title}" | Era: ${story.era_inicial || '?'} | Momento: ${story.data_hora_atual || '?'} | Cenário: ${story.cenario_atual || '?'} | Clima: ${story.clima_atual || '?'} | Personagens: ${characters.map((c) => c.name).join(', ') || 'nenhum'}`;
+        const metaB = `Universo "${visitante.name}" | Leis: ${visitante.rules || 'não definidas'} | História: "${storyVis?.title || '?'}" | Era: ${storyVis?.era_inicial || '?'} | Momento: ${storyVis?.data_hora_atual || '?'} | Cenário: ${storyVis?.cenario_atual || '?'} | Clima: ${storyVis?.clima_atual || '?'} | Personagens: ${charsVisitante.map((c) => c.name).join(', ') || 'nenhum'}`;
+
+        colisao = await sdk.integrations.Core.InvokeLLM({
+          prompt: `Você é o Colisor de Gênesis, a camada mais alta de governança arquitetônica do Base 44. O usuário acaba de realizar uma ação que conecta duas raízes narrativas independentes (Gênesis A e Gênesis B).
+
+Sua função é ler os metadados fundamentais de ambos os universos e estabelecer as "Leis de Intersecção". Quando a Magia do Universo A colide com a Tecnologia do Universo B, o que acontece?
+
+DIRETRIZES DE COLISÃO:
+1. Resolução de Conflitos Físicos/Mágicos: Determine a regra de dominância. O ambiente onde o encontro ocorre suprime as leis do universo visitante, ou há uma fusão caótica?
+2. Choque Ontológico: Avalie a diferença de "Tom Narrativo" (ex: Alta Fantasia colidindo com Noir Investigativo) e defina a atmosfera híbrida deste novo ponto de encontro.
+
+[DADOS DO GÊNESIS A (ANFITRIÃO)]: ${metaA}
+[DADOS DO GÊNESIS B (VISITANTE)]: ${metaB}
+[AÇÃO DO USUÁRIO QUE CAUSOU A COLISÃO]: "${texto}"`,
+          response_json_schema: {
+            type: 'object',
+            properties: {
+              evento_de_colisao: { type: 'string', description: 'Nome do Evento (Ex: A Fenda de Gênesis)' },
+              universos_envolvidos: { type: 'array', items: { type: 'string' } },
+              leis_de_interseccao: {
+                type: 'object',
+                properties: {
+                  regra_de_combate: { type: 'string', description: 'Como habilidades/armas funcionam neste encontro' },
+                  regra_de_comunicacao: { type: 'string', description: 'Idiomas traduzidos por magia local ou barreira linguística?' }
+                },
+                required: ['regra_de_combate', 'regra_de_comunicacao']
+              },
+              atmosfera_hibrida: { type: 'string', description: 'Instrução direta para a IA escritora sobre o tom estético da fusão' },
+              novo_no_macro_grafo_id: { type: 'string', description: 'Ex: ID_Nexus_001 (formato nexus_snake_case)' }
+            },
+            required: ['evento_de_colisao', 'universos_envolvidos', 'leis_de_interseccao', 'atmosfera_hibrida', 'novo_no_macro_grafo_id']
+          }
+        });
+
+        // Aplica as Leis de Intersecção ao universo anfitrião
+        const regrasAtualizadas = `${universe.rules || ''} | COLISÃO DE GÊNESIS "${colisao.evento_de_colisao}" com "${visitante.name}": COMBATE — ${colisao.leis_de_interseccao.regra_de_combate} | COMUNICAÇÃO — ${colisao.leis_de_interseccao.regra_de_comunicacao} | ATMOSFERA HÍBRIDA: ${colisao.atmosfera_hibrida}`;
+        await sdk.entities.Universe.update(universe.id, { rules: regrasAtualizadas });
+        universe.rules = regrasAtualizadas;
+
+        // Materializa os personagens visitantes na cena do anfitrião (memórias isoladas por chave)
+        const visitantesEmCena = charsVisitante.filter((c) => (storyVis?.characters_in_scene || []).includes(c.name));
+        if (visitantesEmCena.length) {
+          const clonesVisitantes = await sdk.entities.Character.bulkCreate(visitantesEmCena.map((c) => ({
+            universe_id: story.universe_id,
+            name: c.name,
+            description: `${c.description || ''}\n[Visitante do Gênesis: ${visitante.name}]`.trim(),
+            psychological_state: c.psychological_state || null,
+            superagente_id: c.superagente_id || null,
+            motivo_alocacao: 'Travessia por Colisão de Gênesis',
+            tracos_iniciais: c.tracos_iniciais || [],
+            primeira_memoria: c.primeira_memoria || null,
+            memoria_core: c.memoria_core || [],
+            eventos_historicos: c.eventos_historicos || null
+          })));
+          await Promise.all(visitantesEmCena.map(async (orig) => {
+            const clone = clonesVisitantes.find((c) => c.name === orig.name);
+            if (!clone) return;
+            const mems = await sdk.entities.CharacterMemory.filter({ character_id: orig.id }, 'created_date', 500);
+            if (mems.length) {
+              await sdk.entities.CharacterMemory.bulkCreate(mems.map((m) => ({
+                character_id: clone.id,
+                character_name: clone.name,
+                superagente_id: clone.superagente_id || null,
+                story_id: story.id,
+                content: m.content
+              })));
+            }
+          }));
+          characters = characters.concat(clonesVisitantes);
+          const novaCena = [...new Set([...(story.characters_in_scene || []), ...clonesVisitantes.map((c) => c.name)])];
+          await sdk.entities.Story.update(story.id, { characters_in_scene: novaCena });
+          story.characters_in_scene = novaCena;
+        }
+
+        // Nó Nexus no macrografo do anfitrião
+        const nexusId = colisao.novo_no_macro_grafo_id.toLowerCase().replace(/[^a-z0-9_]/g, '_');
+        const nexusExistente = await sdk.entities.GraphNode.filter({ universe_id: story.universe_id, node_id: nexusId });
+        if (!nexusExistente.length) {
+          await sdk.entities.GraphNode.create({
+            universe_id: story.universe_id,
+            node_id: nexusId,
+            tipo: 'Nexus',
+            rotulo: colisao.evento_de_colisao,
+            descricao_breve: `Ponto de intersecção entre "${universe.name}" e "${visitante.name}". ${colisao.atmosfera_hibrida}`
+          });
+        }
+
+        // Marca o evento na história
+        await sdk.entities.NarrativeBlock.create({
+          story_id: story.id,
+          type: 'SYSTEM',
+          content: `⨂ Colisão de Gênesis — "${colisao.evento_de_colisao}": os universos "${universe.name}" e "${visitante.name}" agora se intersectam. ${colisao.atmosfera_hibrida}`
+        });
+      }
+    }
+
     // ----- Superagentes Hospedeiros: reações reais de TODOS os personagens em cena -----
     const contextoCena = `${texto} | Cenário: ${story.cenario_atual || '?'} | Clima: ${story.clima_atual || '?'} | Momento: ${story.data_hora_atual || '?'}`;
     const emCena = characters.filter((c) => (story.characters_in_scene || []).includes(c.name) || c.name === story.current_pov_name);
@@ -630,6 +741,7 @@ Escreva apenas o parágrafo literário de transição (aterrissagem de consciên
         pov_ativo: povNarrativa || 'narrador onisciente',
         paragrafo_de_transicao_de_consciencia: paragrafoTransicao,
         fratura_temporal: paradoxo ? { tipo: paradoxo.tipo_de_paradoxo, nova_linha: universe.name, divergencia: paradoxo.novas_regras_temporais } : null,
+        colisao_de_genesis: colisao,
         personagens_em_cena: emCena.map((c) => ({ nome: c.name, estado_psicologico: c.psychological_state || '?', tracos: c.tracos_iniciais || [], perfil: c.description || '?' })),
         respostas_dos_superagentes: reacoes.map((r) => ({ personagem: r.nome, pov: r.isPov, reacao: r.resposta })),
         veredicto_do_arbitro: veredicto,
@@ -655,7 +767,7 @@ Escreva o System Prompt formatado em Markdown, começando com "Você é o autor 
         }
       });
       await sdk.entities.NarrativeBlock.create({ story_id: story.id, type: 'USER', content: texto });
-      return Response.json({ roteamento, storyId: story.id, paradoxo, veredicto, system_prompt_master: adaptacao.system_prompt_master });
+      return Response.json({ roteamento, storyId: story.id, paradoxo, colisao, veredicto, system_prompt_master: adaptacao.system_prompt_master });
     }
 
     // ----- Orquestrador Narrativo Principal -----
@@ -675,6 +787,7 @@ VARIÁVEIS INJETADAS PELO SISTEMA BASE 44:
 ${paragrafoTransicao ? `[PARÁGRAFO DE ATERRISSAGEM DO GESTOR DE TRANSIÇÃO DE CONSCIÊNCIA — a prosa DEVE começar exatamente com este parágrafo e continuar a partir dele]:
 ${paragrafoTransicao}` : ''}
 ${paradoxo ? `[FRATURA TEMPORAL — GUARDIÃO DOS PARADOXOS]: A realidade acaba de bifurcar (${paradoxo.tipo_de_paradoxo}) para a linha "${universe.name}". Divergência: ${paradoxo.novas_regras_temporais}. A prosa deve evidenciar organicamente essa fratura da realidade.
+` : ''}${colisao ? `[COLISÃO DE GÊNESIS — COLISOR DE GÊNESIS]: O evento "${colisao.evento_de_colisao}" acaba de conectar os universos ${(colisao.universos_envolvidos || []).join(' ⨯ ')}. LEIS DE INTERSECÇÃO obrigatórias na prosa: COMBATE — ${colisao.leis_de_interseccao.regra_de_combate} | COMUNICAÇÃO — ${colisao.leis_de_interseccao.regra_de_comunicacao}. ATMOSFERA HÍBRIDA (tom estético mandatório): ${colisao.atmosfera_hibrida}
 ` : ''}[VEREDICTO DO ÁRBITRO DE CONSEQUÊNCIAS — a prosa DEVE respeitar rigorosamente este desfecho; a ação do usuário NÃO acontece automaticamente como ele quis]:
 - Status da ação: ${veredicto.status_da_acao}
 - O que realmente acontece: ${veredicto.descricao_do_desfecho}
@@ -773,7 +886,7 @@ ESTADO GLOBAL ATUAL: momento "${atual.data_ou_hora_aproximada}", cenário "${atu
 NOTAS DO SINCRONIZADOR PARA O GRAFO: ${sincronizacao.notas_para_o_grafo}
 PERSONAGENS E AGENTES BASE44: ${characters.map((c) => `${c.name} → ${c.superagente_id || '?'}`).join('; ')}`);
 
-    return Response.json({ roteamento, storyId: story.id, alocacoes, paradoxo, veredicto, sincronizacao, grafo, compactacoes });
+    return Response.json({ roteamento, storyId: story.id, alocacoes, paradoxo, colisao, veredicto, sincronizacao, grafo, compactacoes });
   } catch (error) {
     return Response.json({ error: error.message }, { status: 500 });
   }
