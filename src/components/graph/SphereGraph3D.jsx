@@ -3,7 +3,7 @@ import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { computeSpherePositions } from "./sphereLayout";
 
-export default function SphereGraph3D({ nos, arestas, metadata, lod, onViewportEvent, onSelect }) {
+export default function SphereGraph3D({ nos, arestas, metadata, lod, onViewportEvent, onSelect, zoomControlRef }) {
   const mountRef = useRef(null);
   const onSelectRef = useRef(onSelect);
   onSelectRef.current = onSelect;
@@ -24,6 +24,13 @@ export default function SphereGraph3D({ nos, arestas, metadata, lod, onViewportE
     el.appendChild(renderer.domElement);
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
+
+    // Barrinha de zoom discreta: t (0..1) → distância da câmera 1000..120
+    if (zoomControlRef) {
+      zoomControlRef.current = (t) => {
+        camera.position.setLength(Math.max(120, 1000 - t * 880));
+      };
+    }
 
     const group = new THREE.Group();
     scene.add(group);

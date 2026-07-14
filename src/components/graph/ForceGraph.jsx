@@ -1,7 +1,7 @@
 import React, { useMemo, useRef, useEffect } from "react";
 import { computeLayout, TIPO_CORES } from "./graphUtils";
 
-export default function ForceGraph({ nodes, edges, selectedId, onSelect, render, width = 1200, height = 800 }) {
+export default function ForceGraph({ nodes, edges, selectedId, onSelect, render, zoomControlRef, width = 1200, height = 800 }) {
   const { positions, index } = useMemo(
     () => computeLayout(nodes, edges, width, height),
     [nodes, edges, width, height]
@@ -28,6 +28,17 @@ export default function ForceGraph({ nodes, edges, selectedId, onSelect, render,
     const svg = svgRef.current;
     if (!svg) return;
     applyView();
+
+    // Barrinha de zoom discreta: t (0..1) → escala 0.3..5, ancorada no centro
+    if (zoomControlRef) {
+      zoomControlRef.current = (t) => {
+        const k = 0.3 * Math.pow(5 / 0.3, t);
+        const v = view.current;
+        const cx = width / 2, cy = height / 2;
+        view.current = { k, x: cx - ((cx - v.x) / v.k) * k, y: cy - ((cy - v.y) / v.k) * k };
+        applyView();
+      };
+    }
 
     // Converte coordenadas do mouse (tela) em coordenadas do viewBox do SVG
     const toSvgPoint = (clientX, clientY) => {

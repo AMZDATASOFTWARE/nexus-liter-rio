@@ -18,7 +18,7 @@ function makeLabel(text) {
   return sprite;
 }
 
-export default function TemporalGraph3D({ nos, arestas, layers, wormholes, onSelect }) {
+export default function TemporalGraph3D({ nos, arestas, layers, wormholes, onSelect, zoomControlRef }) {
   const mountRef = useRef(null);
   const onSelectRef = useRef(onSelect);
   onSelectRef.current = onSelect;
@@ -36,6 +36,13 @@ export default function TemporalGraph3D({ nos, arestas, layers, wormholes, onSel
     el.appendChild(renderer.domElement);
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
+
+    // Barrinha de zoom discreta: t (0..1) → distância da câmera 1100..140
+    if (zoomControlRef) {
+      zoomControlRef.current = (t) => {
+        camera.position.setLength(Math.max(140, 1100 - t * 960));
+      };
+    }
 
     const group = new THREE.Group();
     scene.add(group);

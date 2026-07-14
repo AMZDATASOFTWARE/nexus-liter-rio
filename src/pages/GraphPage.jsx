@@ -8,6 +8,7 @@ import SphereGraph3D from "@/components/graph/SphereGraph3D";
 import TemporalGraph3D from "@/components/graph/TemporalGraph3D";
 import NodeDetails from "@/components/graph/NodeDetails";
 import LodHud from "@/components/graph/LodHud";
+import ZoomBar from "@/components/graph/ZoomBar";
 import { TIPO_CORES } from "@/components/graph/graphUtils";
 
 export default function GraphPage() {
@@ -17,6 +18,7 @@ export default function GraphPage() {
   const [lod, setLod] = useState(null);
   const [lodLoading, setLodLoading] = useState(false);
   const lodBusy = useRef(false);
+  const zoomRef = useRef(null);
 
   const handleViewportEvent = async (evt) => {
     if (lodBusy.current) return;
@@ -122,7 +124,7 @@ export default function GraphPage() {
               <p className="text-xs">O Físico de Dados 3D está calculando as forças centrípetas do Omniverso...</p>
             </div>
           ) : (
-            <SphereGraph3D nos={fisica.nos || []} arestas={fisica.arestas || []} metadata={fisica.nodes_physics_metadata || []} lod={lod} onViewportEvent={handleViewportEvent} onSelect={setSelected} />
+            <SphereGraph3D nos={fisica.nos || []} arestas={fisica.arestas || []} metadata={fisica.nodes_physics_metadata || []} lod={lod} onViewportEvent={handleViewportEvent} onSelect={setSelected} zoomControlRef={zoomRef} />
           )
         ) : modo === "tempo" ? (
           loadingTemporal || !temporal ? (
@@ -131,7 +133,7 @@ export default function GraphPage() {
               <p className="text-xs">O Arquiteto de Estratificação Temporal está fatiando o Omniverso pelo eixo do tempo...</p>
             </div>
           ) : (
-            <TemporalGraph3D nos={temporal.nos || []} arestas={temporal.arestas || []} layers={temporal.temporal_layers || []} wormholes={temporal.wormhole_edges || []} onSelect={setSelected} />
+            <TemporalGraph3D nos={temporal.nos || []} arestas={temporal.arestas || []} layers={temporal.temporal_layers || []} wormholes={temporal.wormhole_edges || []} onSelect={setSelected} zoomControlRef={zoomRef} />
           )
         ) : isLoading ? (
           <div className="h-full flex items-center justify-center text-zinc-500">
@@ -142,8 +144,9 @@ export default function GraphPage() {
             <p className="text-sm text-zinc-600">O Arquiteto de Dados ainda não mapeou este universo. Continue a narrativa para gerar o grafo.</p>
           </div>
         ) : (
-          <ForceGraph nodes={nodes} edges={edges} selectedId={selected?.node_id} onSelect={setSelected} render={render} />
+          <ForceGraph nodes={nodes} edges={edges} selectedId={selected?.node_id} onSelect={setSelected} render={render} zoomControlRef={zoomRef} />
         )}
+        <ZoomBar key={modo} onZoom={(t) => zoomRef.current?.(t)} />
         {modo === "esfera" && <LodHud lod={lod} loading={lodLoading} onReset={() => setLod(null)} />}
         <NodeDetails node={selected} edges={modo === "esfera" && fisica ? fisica.arestas : modo === "tempo" && temporal ? temporal.arestas : edges} nodes={modo === "esfera" && fisica ? fisica.nos : modo === "tempo" && temporal ? temporal.nos : nodes} onClose={() => setSelected(null)} />
       </div>
