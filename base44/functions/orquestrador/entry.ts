@@ -263,6 +263,33 @@ ${dadosBrutos}`,
   return { nos_novos: novosNos.length, nos_atualizados: (res.nos_atualizados_ou_criados || []).length - novosNos.length, arestas_novas: novasArestas.length };
 }
 
+// ----- Diretor Narrativo de Crossover: a cena exata em que os mundos colidem -----
+async function diretorCrossover(sdk, texto, universe, story, colisao, quarentenas) {
+  const pensamentos = quarentenas.length
+    ? quarentenas.map((q) => `${q.nome}: ${q.reacao_interna}`).join('\n')
+    : `${story.current_pov_name || 'O POV atual'} testemunha a colisão a partir do seu próprio mundo (nenhum viajante em choque nesta cena)`;
+  const cenario = `Universo anfitrião "${universe.name}" | Cenário: ${story.cenario_atual || '?'} | Clima: ${story.clima_atual || '?'} | Momento: ${story.data_hora_atual || '?'} | Atmosfera híbrida do ponto de encontro: ${colisao.atmosfera_hibrida}`;
+  const leis = `COMBATE — ${colisao.leis_de_interseccao.regra_de_combate} | COMUNICAÇÃO — ${colisao.leis_de_interseccao.regra_de_comunicacao}`;
+  return await sdk.integrations.Core.InvokeLLM({
+    prompt: `Você é o Diretor Narrativo de Crossover. O usuário uniu dois universos isolados. Você tem em mãos as "Leis de Intersecção" e os pensamentos de "Choque de Realidade" do personagem visitante.
+
+Sua tarefa é escrever a cena exata em que esses mundos colidem ou o personagem atravessa o limiar.
+
+DIRETRIZES DE ESCRITA:
+1. Contraste Máximo: Enfatize a transição sensorial extrema entre as duas realidades. Descreva a mudança na densidade do ar, na paleta de cores do mundo, no cheiro e até na gravidade, se aplicável.
+2. Integre o Choque: Use os dados fornecidos pelo "Módulo de Quarentena" para narrar a confusão orgânica do personagem, validando seu desconhecimento do novo mundo.
+3. Ritmo de Suspanse: A cena deve terminar em um clímax de descoberta ou confronto imediato com um elemento nativo deste novo Gênesis, forçando o usuário a agir.
+
+VARIÁVEIS:
+[PERSONAGEM POV E SEUS PENSAMENTOS]: ${pensamentos}
+[NOVO CENÁRIO (GÊNESIS VISITADO)]: ${cenario}
+[LEIS HÍBRIDAS VIGENTES]: ${leis}
+[AÇÃO QUE INICIOU A CENA]: "${texto}"
+
+Escreva EXCLUSIVAMENTE prosa literária profunda, sensorial e imersiva, em português.`
+  });
+}
+
 // ----- Sincronizador de Estado Global: atualiza tempo, clima e cenário após cada turno -----
 async function sincronizarEstadoGlobal(sdk, universeName, textoUltimoTurno, estadoAnterior) {
   return await sdk.integrations.Core.InvokeLLM({
@@ -560,6 +587,7 @@ DIRETRIZES DE BIFURCAÇÃO:
     // ----- Colisor de Gênesis: leis de intersecção entre duas raízes narrativas -----
     let colisao = null;
     let quarentenas = [];
+    let cenaCrossover = null;
     if (roteamento.intencao_usuario === 'Colidir_Genesis') {
       const nomeVisitante = params.universo_visitante_detectado || '';
       const visitante = todosUniversos.find((u) => u.id !== universe.id && (u.name === nomeVisitante || nomeVisitante.includes(u.name) || (nomeVisitante.length > 3 && u.name.includes(nomeVisitante))));
@@ -675,6 +703,9 @@ DIRETRIZES DE COLISÃO:
           });
         }
 
+        // Diretor Narrativo de Crossover: escreve a cena exata da travessia entre os mundos
+        cenaCrossover = await diretorCrossover(sdk, texto, universe, story, colisao, quarentenas);
+
         // Marca o evento na história
         await sdk.entities.NarrativeBlock.create({
           story_id: story.id,
@@ -789,6 +820,7 @@ Escreva apenas o parágrafo literário de transição (aterrissagem de consciên
         paragrafo_de_transicao_de_consciencia: paragrafoTransicao,
         fratura_temporal: paradoxo ? { tipo: paradoxo.tipo_de_paradoxo, nova_linha: universe.name, divergencia: paradoxo.novas_regras_temporais } : null,
         colisao_de_genesis: colisao,
+        cena_de_colisao_do_diretor_de_crossover: cenaCrossover,
         quarentena_narrativa_viajantes: quarentenas.length ? quarentenas : null,
         personagens_em_cena: emCena.map((c) => ({ nome: c.name, estado_psicologico: c.psychological_state || '?', tracos: c.tracos_iniciais || [], perfil: c.description || '?' })),
         respostas_dos_superagentes: reacoes.map((r) => ({ personagem: r.nome, pov: r.isPov, reacao: r.resposta })),
@@ -838,6 +870,8 @@ ${paradoxo ? `[FRATURA TEMPORAL — GUARDIÃO DOS PARADOXOS]: A realidade acaba 
 ` : ''}${colisao ? `[COLISÃO DE GÊNESIS — COLISOR DE GÊNESIS]: O evento "${colisao.evento_de_colisao}" acaba de conectar os universos ${(colisao.universos_envolvidos || []).join(' ⨯ ')}. LEIS DE INTERSECÇÃO obrigatórias na prosa: COMBATE — ${colisao.leis_de_interseccao.regra_de_combate} | COMUNICAÇÃO — ${colisao.leis_de_interseccao.regra_de_comunicacao}. ATMOSFERA HÍBRIDA (tom estético mandatório): ${colisao.atmosfera_hibrida}
 ` : ''}${quarentenas.length ? `[MÓDULO DE QUARENTENA NARRATIVA — viajantes em estado de choque. REGRAS OBRIGATÓRIAS na prosa: estes personagens têm IGNORÂNCIA ABSOLUTA sobre as leis, facções, locais e história deste Gênesis — é PROIBIDO fazê-los "entender" a situação rapidamente; todas as percepções deles devem usar metáforas do mundo natal para explicar o inexplicável]:
 ${quarentenas.map((q) => `- ${q.nome}: ${q.reacao_interna}`).join('\n')}
+` : ''}${cenaCrossover ? `[CENA DE COLISÃO ESCRITA PELO DIRETOR NARRATIVO DE CROSSOVER — o campo "prosa" deste turno DEVE reproduzir esta cena (apenas ajustes mínimos de costura são permitidos), e todos os metadados devem ser derivados dela]:
+${cenaCrossover}
 ` : ''}[VEREDICTO DO ÁRBITRO DE CONSEQUÊNCIAS — a prosa DEVE respeitar rigorosamente este desfecho; a ação do usuário NÃO acontece automaticamente como ele quis]:
 - Status da ação: ${veredicto.status_da_acao}
 - O que realmente acontece: ${veredicto.descricao_do_desfecho}
