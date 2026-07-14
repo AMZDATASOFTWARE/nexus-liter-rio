@@ -92,3 +92,45 @@
     @apply bg-background text-foreground font-body;
   }
 }
+
+/* Interferência multiversal: glitch curto com duplicação fantasma, seguido de ~3s de calmaria */
+@keyframes glitch-ghost {
+  0%, 12%, 100% {
+    transform: none;
+    filter: none;
+    opacity: 1;
+  }
+  2% {
+    transform: translate(-3px, 1px) skewX(2deg);
+    filter: drop-shadow(7px 0 0 rgba(139, 92, 246, 0.35)) drop-shadow(-7px 0 0 rgba(34, 211, 238, 0.3));
+    opacity: 0.85;
+  }
+  4% {
+    transform: translate(3px, -1px) skewX(-3deg);
+    filter: drop-shadow(-10px 0 0 rgba(139, 92, 246, 0.3)) drop-shadow(10px 2px 0 rgba(255, 255, 255, 0.14));
+    opacity: 0.65;
+  }
+  6% {
+    transform: translate(-2px, 0) skewX(1.5deg);
+    filter: drop-shadow(12px 0 0 rgba(255, 255, 255, 0.12)) drop-shadow(-12px 0 0 rgba(139, 92, 246, 0.28));
+    opacity: 0.75;
+  }
+  8% {
+    transform: translate(2px, 1px) skewX(-1deg);
+    filter: drop-shadow(-5px 0 0 rgba(34, 211, 238, 0.25)) drop-shadow(5px 0 0 rgba(139, 92, 246, 0.2));
+    opacity: 0.85;
+  }
+  10% {
+    transform: translate(-1px, 0);
+    filter: drop-shadow(3px 0 0 rgba(34, 211, 238, 0.18));
+    opacity: 0.95;
+  }
+}
+
+.glitch-anim {
+  animation: glitch-ghost 3.4s infinite linear;
+  will-change: transform, filter, opacity;
+}
+.glitch-anim-d1 { animation-delay: 0.12s; }
+.glitch-anim-d2 { animation-delay: 0.24s; }
+.glitch-anim-d3 { animation-delay: 0.36s; }

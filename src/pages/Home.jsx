@@ -20,14 +20,14 @@ export default function Home() {
     <div className="min-h-screen bg-[#08080f] text-zinc-100">
       <div className="max-w-3xl mx-auto px-6 py-20 md:py-28">
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="text-center space-y-6">
-          <p className="text-[11px] uppercase tracking-[0.4em] text-violet-300/60">Sistema Literário Multiversal</p>
-          <h1 className="text-5xl md:text-6xl font-display font-light tracking-tight bg-gradient-to-b from-white to-zinc-500 bg-clip-text text-transparent">
+          <p className="glitch-anim text-[11px] uppercase tracking-[0.4em] text-violet-300/60">Sistema Literário Multiversal</p>
+          <h1 className="glitch-anim glitch-anim-d1 text-5xl md:text-6xl font-display font-light tracking-tight bg-gradient-to-b from-white to-zinc-500 bg-clip-text text-transparent">
             Motor Narrativo
           </h1>
-          <p className="text-zinc-500 max-w-md mx-auto text-sm leading-relaxed">
+          <p className="glitch-anim glitch-anim-d2 text-zinc-500 max-w-md mx-auto text-sm leading-relaxed">
             Dite sua história. O Orquestrador Mestre delega cada palavra à rede de Superagentes que escrevem, transitam consciências e mantêm o multiverso coerente.
           </p>
-          <div className="flex items-center justify-center gap-3 flex-wrap">
+          <div className="glitch-anim glitch-anim-d3 flex items-center justify-center gap-3 flex-wrap">
             <Link
               to="/historia/nova"
               className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-indigo-500 to-violet-600 px-7 py-3.5 text-sm font-medium text-white hover:scale-[1.03] active:scale-95 transition-transform shadow-lg shadow-indigo-900/40"
