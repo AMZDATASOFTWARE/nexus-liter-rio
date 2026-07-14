@@ -52,6 +52,10 @@
     "notas_grafo": {
       "type": "string",
       "description": "Notas para o Arquiteto de Grafos sobre o cen\u00e1rio visual"
+    },
+    "render_grafo": {
+      "type": "string",
+      "description": "Comando visual JSON do Orquestrador de Renderiza\u00e7\u00e3o Visual (zoom, n\u00f3s expandidos, clusters colapsados, arestas em destaque)"
     }
   },
   "required": [

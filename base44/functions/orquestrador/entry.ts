@@ -394,6 +394,69 @@ Escreva EXCLUSIVAMENTE prosa literária profunda, sensorial e imersiva, em portu
   });
 }
 
+// ----- Orquestrador de Renderização Visual: nível de zoom e arestas ocultas do grafo na UI -----
+async function orquestradorRenderizacao(sdk, story, universe) {
+  const [nos, arestas] = await Promise.all([
+    sdk.entities.GraphNode.filter({ universe_id: story.universe_id }, undefined, 500),
+    sdk.entities.GraphEdge.filter({ universe_id: story.universe_id }, undefined, 1000)
+  ]);
+  if (!nos.length) return null;
+  const inventario = nos.map((n) => `${n.node_id} [${n.tipo}] "${n.rotulo}"`).join('; ');
+  const povNodeId = story.current_pov_name ? `personagem_${story.current_pov_name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '')}` : null;
+
+  const res = await sdk.integrations.Core.InvokeLLM({
+    prompt: `Você é o Orquestrador de Renderização Visual. O mapa de grafos da história cresceu a ponto de conectar múltiplos universos Gênesis. Sua função é determinar o "Nível de Zoom" e as "Arestas Ocultas" que a interface (UI) deve exibir para o usuário no turno atual, mantendo a tela imersiva e limpa.
+
+LÓGICA DE EXIBIÇÃO:
+1. Foco Ativo: Se o usuário está controlando um personagem dentro do Gênesis B, o grafo do Gênesis A deve ser minimizado ou ocultado, mostrando apenas o "Nó Nexus" (a ponte entre eles) brilhando.
+2. Agrupamento (Clusters): Agrupe personagens, eventos e locais que não são relevantes para a cena atual em "Nebulosas de Memória" (nós colapsados).
+3. Destaque de Trajetória: A linha temporal exata que levou o personagem do Universo A até o momento exato no Universo B deve receber uma renderização destacada.
+
+REGRAS TÉCNICAS OBRIGATÓRIAS:
+- Use EXCLUSIVAMENTE node_ids existentes no inventário abaixo (em camera_foco_id, nos_para_expandir, clusters_para_colapsar e arestas_em_destaque).
+- "clusters_para_colapsar" é a lista de node_ids irrelevantes para a cena atual que a UI deve esmaecer/colapsar em Nebulosas de Memória.
+- Nós do tipo Nexus e Anomalia relevantes devem estar em "nos_para_expandir" para brilhar.
+
+[ESTADO DA CENA ATUAL]: POV: ${story.current_pov_name || 'narrador onisciente'}${povNodeId ? ` (provável node_id: ${povNodeId})` : ''} | Cenário: ${story.cenario_atual || '?'} | Clima: ${story.clima_atual || '?'} | Momento: ${story.data_hora_atual || '?'} | Personagens em cena: ${(story.characters_in_scene || []).join(', ') || 'nenhum'} | Universo focado: "${universe.name}"
+[ESTADO COMPLETO DO BANCO DE DADOS MACRO]: ${nos.length} nós e ${arestas.length} arestas neste grafo. Inventário: ${inventario}`,
+    response_json_schema: {
+      type: 'object',
+      properties: {
+        comando_visual: { type: 'string', enum: ['Atualizar_Grafo'] },
+        camera_foco_id: { type: 'string', description: 'node_id do personagem em cena agora' },
+        nivel_de_zoom_recomendado: { type: 'string', enum: ['Micro (Cena)', 'Macro (Universo)', 'Omniversal (Todos os Gênesis)'] },
+        nos_para_expandir: { type: 'array', items: { type: 'string' }, description: 'node_ids relevantes agora' },
+        clusters_para_colapsar: { type: 'array', items: { type: 'string' }, description: 'node_ids irrelevantes a colapsar em Nebulosas de Memória' },
+        arestas_em_destaque: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              origem: { type: 'string' },
+              destino: { type: 'string' },
+              estilo_de_linha: { type: 'string', description: 'Ex: pulsante_neon_vermelho' }
+            },
+            required: ['origem', 'destino', 'estilo_de_linha']
+          }
+        }
+      },
+      required: ['comando_visual', 'camera_foco_id', 'nivel_de_zoom_recomendado', 'nos_para_expandir', 'clusters_para_colapsar', 'arestas_em_destaque']
+    }
+  });
+
+  const idsValidos = new Set(nos.map((n) => n.node_id));
+  const render = {
+    comando_visual: 'Atualizar_Grafo',
+    camera_foco_id: idsValidos.has(res.camera_foco_id) ? res.camera_foco_id : null,
+    nivel_de_zoom_recomendado: res.nivel_de_zoom_recomendado,
+    nos_para_expandir: (res.nos_para_expandir || []).filter((id) => idsValidos.has(id)),
+    clusters_para_colapsar: (res.clusters_para_colapsar || []).filter((id) => idsValidos.has(id)),
+    arestas_em_destaque: (res.arestas_em_destaque || []).filter((a) => idsValidos.has(a.origem) && idsValidos.has(a.destino))
+  };
+  await sdk.entities.Story.update(story.id, { render_grafo: JSON.stringify(render) });
+  return render;
+}
+
 // ----- Sincronizador de Estado Global: atualiza tempo, clima e cenário após cada turno -----
 async function sincronizarEstadoGlobal(sdk, universeName, textoUltimoTurno, estadoAnterior) {
   return await sdk.integrations.Core.InvokeLLM({
@@ -1094,7 +1157,10 @@ ESTADO GLOBAL ATUAL: momento "${atual.data_ou_hora_aproximada}", cenário "${atu
 NOTAS DO SINCRONIZADOR PARA O GRAFO: ${sincronizacao.notas_para_o_grafo}
 PERSONAGENS E AGENTES BASE44: ${characters.map((c) => `${c.name} → ${c.superagente_id || '?'}`).join('; ')}`);
 
-    return Response.json({ roteamento, storyId: story.id, alocacoes, paradoxo, colisao, quarentenas, contaminacao, assimilacoes, veredicto, sincronizacao, grafo, compactacoes });
+    // Orquestrador de Renderização Visual: decide zoom, clusters e destaques do grafo na UI
+    const render = await orquestradorRenderizacao(sdk, story, universe);
+
+    return Response.json({ roteamento, storyId: story.id, alocacoes, paradoxo, colisao, quarentenas, contaminacao, assimilacoes, veredicto, sincronizacao, grafo, render, compactacoes });
   } catch (error) {
     return Response.json({ error: error.message }, { status: 500 });
   }

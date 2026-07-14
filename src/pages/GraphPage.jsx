@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { useParams, Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { base44 } from "@/api/base44Client";
@@ -23,6 +23,13 @@ export default function GraphPage() {
     queryKey: ["graphEdges", universeId],
     queryFn: () => base44.entities.GraphEdge.filter({ universe_id: universeId }, "created_date", 1000),
   });
+  const { data: stories = [] } = useQuery({
+    queryKey: ["renderGrafo", universeId],
+    queryFn: () => base44.entities.Story.filter({ universe_id: universeId }, "-updated_date", 1),
+  });
+  const render = useMemo(() => {
+    try { return stories[0]?.render_grafo ? JSON.parse(stories[0].render_grafo) : null; } catch { return null; }
+  }, [stories]);
 
   return (
     <div className="h-screen bg-[#08080f] text-zinc-100 flex flex-col overflow-hidden">
@@ -34,7 +41,10 @@ export default function GraphPage() {
             </Link>
             <div className="min-w-0">
               <h1 className="font-display text-lg truncate">Megagrafo · {universe?.name || "..."}</h1>
-              <p className="text-[11px] text-zinc-500">{nodes.length} nós · {edges.length} conexões</p>
+              <p className="text-[11px] text-zinc-500">
+                {nodes.length} nós · {edges.length} conexões
+                {render?.nivel_de_zoom_recomendado && <span className="text-emerald-400/80"> · zoom {render.nivel_de_zoom_recomendado}</span>}
+              </p>
             </div>
           </div>
           <div className="hidden md:flex items-center gap-3">
@@ -56,7 +66,7 @@ export default function GraphPage() {
             <p className="text-sm text-zinc-600">O Arquiteto de Dados ainda não mapeou este universo. Continue a narrativa para gerar o grafo.</p>
           </div>
         ) : (
-          <ForceGraph nodes={nodes} edges={edges} selectedId={selected?.node_id} onSelect={setSelected} />
+          <ForceGraph nodes={nodes} edges={edges} selectedId={selected?.node_id} onSelect={setSelected} render={render} />
         )}
         <NodeDetails node={selected} edges={edges} nodes={nodes} onClose={() => setSelected(null)} />
       </div>
