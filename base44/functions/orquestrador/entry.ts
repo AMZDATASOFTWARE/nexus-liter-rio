@@ -1,5 +1,18 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.38';
 
+// ----- Cobrador de Tributos: custo em Nexus Tokens por intenção do turno -----
+const CUSTO_POR_INTENCAO = { Continuar: 50, Mudar_POV: 50, Criar_Nova_Historia: 100, Ramificar: 150, Colidir_Genesis: 150 };
+async function cobrarTributo(sdk, wallet, intencao) {
+  if (!wallet) return null;
+  const custo = CUSTO_POR_INTENCAO[intencao] || 50;
+  const saldoRestante = (wallet.nexus_tokens || 0) - custo;
+  await sdk.entities.UserWallet.update(wallet.id, {
+    nexus_tokens: saldoRestante,
+    total_gasto_historico: (wallet.total_gasto_historico || 0) + custo
+  });
+  return { custo, saldo_restante: saldoRestante };
+}
+
 // ----- Alocador de Personagens: designa um Superagente Hospedeiro para cada novo personagem -----
 async function alocarPersonagens(sdk, novosPersonagens) {
   if (!novosPersonagens.length) return [];
@@ -419,6 +432,18 @@ Deno.serve(async (req) => {
     const { texto, storyId, modoByok } = await req.json();
     if (!texto) return Response.json({ error: 'texto é obrigatório' }, { status: 400 });
 
+    // ----- Cobrador de Tributos: turnos nativos (sem BYOK) consomem Nexus Tokens -----
+    let wallet = null;
+    if (!modoByok) {
+      const user = await base44.auth.me();
+      if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
+      const carteiras = await sdk.entities.UserWallet.filter({ user_id: user.id });
+      wallet = carteiras[0] || await sdk.entities.UserWallet.create({ user_id: user.id, nexus_tokens: 10000, total_gasto_historico: 0 });
+      if ((wallet.nexus_tokens || 0) <= 0) {
+        return Response.json({ error: 'Sua energia multiversal acabou. Adquira mais Nexus Tokens ou ative o modo BYOK.' }, { status: 402 });
+      }
+    }
+
     // ----- Estado atual da aplicação -----
     let story = null, universe = null, characters = [], blocks = [], todosUniversos = [];
     if (storyId) {
@@ -596,7 +621,8 @@ CONTEXTO DO ORQUESTRADOR: ${params.contexto_imediato_a_repassar || ''}${conhecim
 UNIVERSO: ${meta.universo_id} | ERA: ${meta.ano_ou_era_inicial} | CLIMA: ${meta.clima_inicial}
 PERSONAGEM POV: ${pov.nome} (estado: ${pov.estado_mental_base}, local: ${pov.localizacao_inicial}, agente Base44: ${alocPov?.superagente_designado || '?'})
 PRIMEIRA MEMÓRIA: ${alocPov?.payload_de_inicializacao?.primeira_memoria_registrada || '?'}`);
-      return Response.json({ roteamento, storyId: newStory.id, alocacoes: alocacoesGenesis, grafo: grafoGenesis });
+      const tributoGenesis = await cobrarTributo(sdk, wallet, 'Criar_Nova_Historia');
+      return Response.json({ roteamento, storyId: newStory.id, alocacoes: alocacoesGenesis, grafo: grafoGenesis, tributo: tributoGenesis });
     }
 
     // ----- Guardião dos Paradoxos: bifurcação da linha temporal -----
@@ -1122,7 +1148,8 @@ PERSONAGENS E AGENTES BASE44: ${characters.map((c) => `${c.name} → ${c.superag
     // Orquestrador de Renderização Visual: decide zoom, clusters e destaques do grafo na UI
     const render = await orquestradorRenderizacao(sdk, story, universe);
 
-    return Response.json({ roteamento, storyId: story.id, alocacoes, paradoxo, colisao, quarentenas, contaminacao, desintegracao, assimilacoes, veredicto, sincronizacao, grafo, render, compactacoes });
+    const tributo = await cobrarTributo(sdk, wallet, roteamento.intencao_usuario);
+    return Response.json({ roteamento, storyId: story.id, alocacoes, paradoxo, colisao, quarentenas, contaminacao, desintegracao, assimilacoes, veredicto, sincronizacao, grafo, render, compactacoes, tributo });
   } catch (error) {
     return Response.json({ error: error.message }, { status: 500 });
   }

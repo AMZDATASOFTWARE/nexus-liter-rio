@@ -1,0 +1,23 @@
+{
+  "name": "UserWallet",
+  "type": "object",
+  "properties": {
+    "user_id": {
+      "type": "string",
+      "description": "ID do usu\u00e1rio dono da carteira"
+    },
+    "nexus_tokens": {
+      "type": "number",
+      "default": 10000,
+      "description": "Saldo atual de Nexus Tokens (energia multiversal)"
+    },
+    "total_gasto_historico": {
+      "type": "number",
+      "default": 0,
+      "description": "Total de Nexus Tokens j\u00e1 gastos pelo usu\u00e1rio"
+    }
+  },
+  "required": [
+    "user_id"
+  ]
+}
