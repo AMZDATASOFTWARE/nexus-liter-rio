@@ -9,6 +9,7 @@ import ScrollToTop from './components/ScrollToTop';
 // Add page imports here
 import Home from './pages/Home';
 import StoryPage from './pages/StoryPage';
+import KnowledgePage from './pages/KnowledgePage';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
@@ -39,6 +40,7 @@ const AuthenticatedApp = () => {
       {/* Add your page Route elements here */}
       <Route path="/" element={<Home />} />
       <Route path="/historia/:id" element={<StoryPage />} />
+      <Route path="/conhecimento" element={<KnowledgePage />} />
       <Route path="*" element={<PageNotFound />} />
     </Routes>
   );

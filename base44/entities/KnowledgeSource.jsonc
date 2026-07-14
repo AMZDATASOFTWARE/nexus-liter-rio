@@ -1,0 +1,31 @@
+{
+  "name": "KnowledgeSource",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Nome da fonte de conhecimento"
+    },
+    "source_type": {
+      "type": "string",
+      "enum": [
+        "huggingface",
+        "googledocs"
+      ],
+      "description": "Origem da fonte"
+    },
+    "reference": {
+      "type": "string",
+      "description": "ID do documento ou caminho repo/arquivo"
+    },
+    "content": {
+      "type": "string",
+      "description": "Texto extra\u00eddo (limitado)"
+    }
+  },
+  "required": [
+    "name",
+    "source_type",
+    "content"
+  ]
+}

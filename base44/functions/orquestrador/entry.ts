@@ -17,6 +17,11 @@ Deno.serve(async (req) => {
       blocks.reverse();
     }
 
+    const fontes = await sdk.entities.KnowledgeSource.list('-created_date', 10);
+    const conhecimento = fontes.length
+      ? `\n\nBASE DE CONHECIMENTO (cânone do multiverso — respeite estritamente estes fatos, estilos e regras):\n${fontes.map((f) => `### ${f.name}\n${(f.content || '').slice(0, 6000)}`).join('\n\n')}`
+      : '';
+
     const estado = story
       ? `História ativa: "${story.title}" | Universo: "${universe.name}" (Regras: ${universe.rules || 'não definidas'}) | POV atual: ${story.current_pov_name || 'narrador onisciente'} | Personagens conhecidos: ${characters.map((c) => `${c.name} (estado: ${c.psychological_state || '?'})`).join('; ') || 'nenhum'} | Personagens em cena: ${(story.characters_in_scene || []).join(', ') || 'nenhum'} | Linha do tempo: ${story.timeline_summary || 'início'} | Últimos blocos: ${blocks.map((b) => `[${b.type}${b.pov_character_name ? '/' + b.pov_character_name : ''}] ${b.content.slice(0, 300)}`).join(' || ')}`
       : 'ZERO ABSOLUTO: nenhuma história, universo ou personagem existe ainda.';
@@ -60,7 +65,7 @@ DIRETRIZES DE ROTEAMENTO (Avalie a intenção do usuário e retorne APENAS um JS
         prompt: `Você é o "Criador de Gênesis" do sistema literário multiversal. A partir do ditado do usuário abaixo, crie o universo (nome e regras), o título da história, os personagens iniciais (com descrição e estado psicológico), o POV inicial e o bloco de abertura em prosa literária rica, em português.
 
 DITADO DO USUÁRIO: ${texto}
-CONTEXTO DO ORQUESTRADOR: ${params.contexto_imediato_a_repassar || ''}`,
+CONTEXTO DO ORQUESTRADOR: ${params.contexto_imediato_a_repassar || ''}${conhecimento}`,
         response_json_schema: {
           type: 'object',
           properties: {
@@ -104,7 +109,7 @@ CONTEXTO DO ORQUESTRADOR: ${params.contexto_imediato_a_repassar || ''}`,
 
 ESTADO ATUAL: ${estado}
 DITADO DO USUÁRIO: ${texto}
-CONTEXTO DO ORQUESTRADOR: ${params.contexto_imediato_a_repassar || ''}
+CONTEXTO DO ORQUESTRADOR: ${params.contexto_imediato_a_repassar || ''}${conhecimento}
 
 Escreva o próximo bloco narrativo em português e atualize os dados.`,
       response_json_schema: {

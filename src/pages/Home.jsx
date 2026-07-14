@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { base44 } from "@/api/base44Client";
 import { motion } from "framer-motion";
-import { Sparkles, BookOpen, ArrowRight } from "lucide-react";
+import { Sparkles, BookOpen, ArrowRight, BookMarked } from "lucide-react";
 
 export default function Home() {
   const { data: stories = [], isLoading } = useQuery({
@@ -27,12 +27,20 @@ export default function Home() {
           <p className="text-zinc-500 max-w-md mx-auto text-sm leading-relaxed">
             Dite sua história. O Orquestrador Mestre delega cada palavra à rede de Superagentes que escrevem, transitam consciências e mantêm o multiverso coerente.
           </p>
-          <Link
-            to="/historia/nova"
-            className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-indigo-500 to-violet-600 px-7 py-3.5 text-sm font-medium text-white hover:scale-[1.03] active:scale-95 transition-transform shadow-lg shadow-indigo-900/40"
-          >
-            <Sparkles className="w-4 h-4" /> Iniciar Gênesis
-          </Link>
+          <div className="flex items-center justify-center gap-3 flex-wrap">
+            <Link
+              to="/historia/nova"
+              className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-indigo-500 to-violet-600 px-7 py-3.5 text-sm font-medium text-white hover:scale-[1.03] active:scale-95 transition-transform shadow-lg shadow-indigo-900/40"
+            >
+              <Sparkles className="w-4 h-4" /> Iniciar Gênesis
+            </Link>
+            <Link
+              to="/conhecimento"
+              className="inline-flex items-center gap-2 rounded-full border border-zinc-700 px-7 py-3.5 text-sm font-medium text-zinc-300 hover:border-violet-500/40 hover:text-white transition-colors"
+            >
+              <BookMarked className="w-4 h-4" /> Base de Conhecimento
+            </Link>
+          </div>
         </motion.div>
 
         <div className="mt-20 space-y-3">
