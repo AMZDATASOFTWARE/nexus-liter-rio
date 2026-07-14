@@ -64,7 +64,8 @@ export default function ForceGraph({ nodes, edges, selectedId, onSelect, render,
       if (!p) return;
       clicked.current = true;
       drag.current = { px: p.x, py: p.y, vx: view.current.x, vy: view.current.y };
-      svg.setPointerCapture(e.pointerId);
+      // Sem setPointerCapture: capturar o ponteiro redireciona o evento de clique
+      // para o próprio SVG e impede a seleção dos nós (o card de detalhes nunca abre).
     };
     const onPointerMove = (e) => {
       if (!drag.current) return;
