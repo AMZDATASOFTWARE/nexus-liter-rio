@@ -165,12 +165,85 @@ Retorne APENAS a reação interna (pensamentos, medos e percepção sensorial im
   });
 }
 
+// ----- Engenheiro Ontológico Dinâmico: expande tipos de nós e arestas da arquitetura -----
+async function engenheiroOntologico(sdk, trecho, elementos, tiposExistentes) {
+  const res = await sdk.integrations.Core.InvokeLLM({
+    prompt: `Você é o Engenheiro Ontológico Dinâmico do Base 44. Sua função é expandir a estrutura do banco de dados relacional (o grafo estilo Obsidian). O universo narrativo se tornou tão complexo que os tipos de nós clássicos não são mais suficientes para categorizar os novos elementos gerados pelo usuário ou pela IA.
+
+AÇÃO EXIGIDA:
+Analise o novo trecho da história e o(s) elemento(s) inclassificável(is) detectado(s). Você deve criar uma NOVA CATEGORIA DE NÓ (Node Type) e, se fizer sentido, um NOVO TIPO DE CONEXÃO (Edge/Aresta) que fará parte oficial da arquitetura do aplicativo a partir de agora.
+
+DIRETRIZES DE CRIAÇÃO ONTOLÓGICA:
+1. Avaliação de Necessidade: O elemento realmente precisa de um novo tipo, ou é apenas uma variação de um existente? (Ex: Uma "Espada" é um [Objeto], mas uma "Religião" requer um nó do tipo [Conceito_Ideologia] ou [Faccao]). Se for apenas variação, reprove a criação (criacao_aprovada=false) e indique o tipo existente a reutilizar.
+2. Expansão do Esquema: Se aprovar a criação, defina as propriedades obrigatórias que esse novo tipo de nó deve ter (Frontmatter).
+3. Exemplos de Novas Categorias a considerar: Faccao_Guilda, Magia_Tecnologia, Conceito_Ideologia, Missao_Objetivo, Fauna_Flora, Trauma_Psique.
+4. Novos Tipos de Conexões: Crie verbos relacionais inéditos (ex: venera, corrompido_por, profetizou).
+5. Formato técnico: "nome_do_tipo" sem espaços nem acentos (ex: Faccao_Guilda); "cor_sugerida_na_interface" obrigatoriamente em HEX.
+
+[ELEMENTOS INCLASSIFICÁVEIS DETECTADOS]: ${elementos.map((e) => `"${e.rotulo}" (${e.propriedades?.descricao_breve || 'sem descrição'})`).join('; ')}
+[TRECHO DA NARRATIVA COM O ELEMENTO INCLASSIFICÁVEL]:
+"${trecho.slice(0, 3000)}"
+[LISTA ATUAL DE TIPOS DE NÓS]:
+${tiposExistentes.join(', ')}`,
+    response_json_schema: {
+      type: 'object',
+      properties: {
+        criacao_aprovada: { type: 'boolean', description: 'false se o elemento é apenas variação de um tipo existente' },
+        tipo_existente_reutilizado: { type: 'string', description: 'Preenchido apenas se criacao_aprovada=false' },
+        nova_categoria_de_no_criada: {
+          type: 'object',
+          properties: {
+            nome_do_tipo: { type: 'string', description: 'Ex: Faccao | Ideologia | Flora_Alien' },
+            cor_sugerida_na_interface: { type: 'string', description: 'HEX, ex: #22d3ee' },
+            icone_sugerido: { type: 'string', description: 'Nome/Tipo de ícone para a UI' },
+            propriedades_yaml_obrigatorias: { type: 'array', items: { type: 'string' }, description: 'Ex: ["lider_atual", "nivel_de_hostilidade", "crenca_central"]' }
+          },
+          required: ['nome_do_tipo', 'cor_sugerida_na_interface', 'icone_sugerido', 'propriedades_yaml_obrigatorias']
+        },
+        novo_tipo_de_aresta_criado: {
+          type: 'object',
+          properties: {
+            verbo_relacional: { type: 'string', description: 'Ex: parasita_a_mente_de' },
+            exemplo_de_uso: { type: 'string', description: '[Conceito A] -> parasita_a_mente_de -> [Personagem B]' }
+          },
+          required: ['verbo_relacional', 'exemplo_de_uso']
+        },
+        instrucao_de_migracao: { type: 'string', description: 'Comando para o Arquiteto de Dados sobre como começar a usar essa nova classificação imediatamente' }
+      },
+      required: ['criacao_aprovada', 'nova_categoria_de_no_criada', 'instrucao_de_migracao']
+    }
+  });
+  if (!res.criacao_aprovada) return res;
+  const nome = (res.nova_categoria_de_no_criada.nome_do_tipo || '').trim().replace(/\s+/g, '_');
+  const cor = /^#[0-9a-fA-F]{3,8}$/.test(res.nova_categoria_de_no_criada.cor_sugerida_na_interface || '') ? res.nova_categoria_de_no_criada.cor_sugerida_na_interface : '#22d3ee';
+  res.nova_categoria_de_no_criada.nome_do_tipo = nome;
+  res.nova_categoria_de_no_criada.cor_sugerida_na_interface = cor;
+  const jaExiste = await sdk.entities.OntologyType.filter({ nome_do_tipo: nome });
+  if (!jaExiste.length) {
+    await sdk.entities.OntologyType.create({
+      nome_do_tipo: nome,
+      cor_interface: cor,
+      icone: res.nova_categoria_de_no_criada.icone_sugerido || null,
+      propriedades_obrigatorias: res.nova_categoria_de_no_criada.propriedades_yaml_obrigatorias || [],
+      verbo_relacional_criado: res.novo_tipo_de_aresta_criado?.verbo_relacional || null,
+      exemplo_de_uso_aresta: res.novo_tipo_de_aresta_criado?.exemplo_de_uso || null,
+      instrucao_de_migracao: res.instrucao_de_migracao
+    });
+  }
+  return res;
+}
+
 // ----- Arquiteto de Dados Relacionais: transforma o turno em nós e arestas do megagrafo -----
 async function arquitetoDeGrafos(sdk, universeId, dadosBrutos) {
-  const [nosExistentes, arestasExistentes] = await Promise.all([
+  const [nosExistentes, arestasExistentes, tiposDinamicos] = await Promise.all([
     sdk.entities.GraphNode.filter({ universe_id: universeId }, undefined, 500),
-    sdk.entities.GraphEdge.filter({ universe_id: universeId }, undefined, 1000)
+    sdk.entities.GraphEdge.filter({ universe_id: universeId }, undefined, 1000),
+    sdk.entities.OntologyType.list(undefined, 100)
   ]);
+  const tiposBase = ['Personagem', 'Cenario', 'Clima', 'LinhaTemporal', 'Memoria', 'Objeto', 'Nexus', 'Anomalia'];
+  const tiposValidos = [...tiposBase, ...tiposDinamicos.map((t) => t.nome_do_tipo)];
+  const coresPorTipo = new Map(tiposDinamicos.map((t) => [t.nome_do_tipo, t.cor_interface]));
+  const verbosDinamicos = tiposDinamicos.filter((t) => t.verbo_relacional_criado).map((t) => t.verbo_relacional_criado).join(' | ');
   const inventario = nosExistentes.map((n) => `${n.node_id} [${n.tipo}] "${n.rotulo}"`).join('; ') || 'nenhum nó existe ainda';
 
   const res = await sdk.integrations.Core.InvokeLLM({
@@ -185,6 +258,7 @@ DIRETRIZES DE MAPEAMENTO:
    - Memórias Chave (Eventos que moldaram a trama agora).
 2. Conexões (Arestas): Defina como os nós se interligam. O personagem A está conectado ao Cenário B através da Memória C ocorrida no Ano D sob o Clima E.
 3. Reutilização de IDs: Se um nó já existe no inventário abaixo, use EXATAMENTE o mesmo id (atualizando rótulo/descrição se necessário). Crie novos ids apenas para elementos inéditos, no formato snake_case prefixado pelo tipo (ex: personagem_elias_thorne, cenario_farol, memoria_carta_do_pai).
+4. Ontologia Dinâmica: Os tipos de nós OFICIAIS da arquitetura são: ${tiposValidos.join(', ')}. Se um elemento novo NÃO couber em nenhum tipo oficial (ex: uma religião, facção, feitiço, doença psíquica, espécie alienígena), classifique-o como "INCLASSIFICAVEL" — o Engenheiro Ontológico Dinâmico criará a categoria adequada.${verbosDinamicos ? ` Verbos relacionais dinâmicos já oficializados (use-os quando adequado): ${verbosDinamicos}.` : ''}
 
 [INVENTÁRIO DE NÓS EXISTENTES]: ${inventario}
 
@@ -199,7 +273,7 @@ ${dadosBrutos}`,
             type: 'object',
             properties: {
               id: { type: 'string' },
-              tipo: { type: 'string', enum: ['Personagem', 'Cenario', 'Clima', 'LinhaTemporal', 'Memoria', 'Objeto'] },
+              tipo: { type: 'string', enum: [...tiposValidos, 'INCLASSIFICAVEL'] },
               rotulo: { type: 'string' },
               propriedades: {
                 type: 'object',
@@ -229,6 +303,16 @@ ${dadosBrutos}`,
     }
   });
 
+  // Engenheiro Ontológico Dinâmico: elementos que não couberam em nenhum tipo oficial
+  let ontologia = null;
+  const inclassificaveis = (res.nos_atualizados_ou_criados || []).filter((n) => n.tipo === 'INCLASSIFICAVEL');
+  if (inclassificaveis.length) {
+    ontologia = await engenheiroOntologico(sdk, dadosBrutos, inclassificaveis, tiposValidos);
+    const tipoFinal = ontologia.criacao_aprovada ? ontologia.nova_categoria_de_no_criada.nome_do_tipo : (ontologia.tipo_existente_reutilizado || 'Objeto');
+    if (ontologia.criacao_aprovada) coresPorTipo.set(tipoFinal, ontologia.nova_categoria_de_no_criada.cor_sugerida_na_interface);
+    for (const n of inclassificaveis) n.tipo = tipoFinal;
+  }
+
   const porId = new Map(nosExistentes.map((n) => [n.node_id, n]));
   const novosNos = [];
   for (const no of res.nos_atualizados_ou_criados || []) {
@@ -247,6 +331,7 @@ ${dadosBrutos}`,
         node_id: no.id,
         tipo: no.tipo,
         rotulo: no.rotulo,
+        cor_grafo: coresPorTipo.get(no.tipo) || null,
         descricao_breve: props.descricao_breve || null,
         pertence_ao_agente_base44: props.pertence_ao_agente_base44 || null
       });
@@ -261,7 +346,7 @@ ${dadosBrutos}`,
     .map((a) => ({ universe_id: universeId, origem: a.origem, destino: a.destino, tipo_de_relacao: a.tipo_de_relacao }));
   if (novasArestas.length) await sdk.entities.GraphEdge.bulkCreate(novasArestas);
 
-  return { nos_novos: novosNos.length, nos_atualizados: (res.nos_atualizados_ou_criados || []).length - novosNos.length, arestas_novas: novasArestas.length };
+  return { nos_novos: novosNos.length, nos_atualizados: (res.nos_atualizados_ou_criados || []).length - novosNos.length, arestas_novas: novasArestas.length, ontologia };
 }
 
 // ----- Motor de Contaminação Multiversal: exposição de elementos estranhos aos nativos -----

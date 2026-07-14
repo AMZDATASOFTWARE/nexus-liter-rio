@@ -12,17 +12,7 @@
     },
     "tipo": {
       "type": "string",
-      "enum": [
-        "Personagem",
-        "Cenario",
-        "Clima",
-        "LinhaTemporal",
-        "Memoria",
-        "Objeto",
-        "Nexus",
-        "Anomalia"
-      ],
-      "description": "Categoria do n\u00f3"
+      "description": "Categoria do n\u00f3 \u2014 tipos base (Personagem, Cenario, Clima, LinhaTemporal, Memoria, Objeto, Nexus, Anomalia) ou categorias din\u00e2micas criadas pelo Engenheiro Ontol\u00f3gico Din\u00e2mico (registradas em OntologyType)"
     },
     "rotulo": {
       "type": "string",
@@ -34,7 +24,7 @@
     },
     "cor_grafo": {
       "type": "string",
-      "description": "Cor HEX de destaque no grafo (ex: neon para Anomalias)"
+      "description": "Cor HEX de destaque no grafo (ex: neon para Anomalias e categorias din\u00e2micas)"
     },
     "pertence_ao_agente_base44": {
       "type": "string",

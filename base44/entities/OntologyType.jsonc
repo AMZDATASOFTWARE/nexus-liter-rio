@@ -1,0 +1,41 @@
+{
+  "name": "OntologyType",
+  "type": "object",
+  "properties": {
+    "nome_do_tipo": {
+      "type": "string",
+      "description": "Nome oficial da nova categoria de n\u00f3 criada pelo Engenheiro Ontol\u00f3gico (ex: Faccao_Guilda, Conceito_Ideologia)"
+    },
+    "cor_interface": {
+      "type": "string",
+      "description": "Cor HEX da categoria na interface do grafo"
+    },
+    "icone": {
+      "type": "string",
+      "description": "\u00cdcone sugerido para a UI"
+    },
+    "propriedades_obrigatorias": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Frontmatter obrigat\u00f3rio (propriedades YAML) dos n\u00f3s desta categoria"
+    },
+    "verbo_relacional_criado": {
+      "type": "string",
+      "description": "Novo tipo de aresta criado junto com a categoria (ex: venera, corrompido_por, profetizou)"
+    },
+    "exemplo_de_uso_aresta": {
+      "type": "string",
+      "description": "Ex: [Conceito A] -> parasita_a_mente_de -> [Personagem B]"
+    },
+    "instrucao_de_migracao": {
+      "type": "string",
+      "description": "Comando para o Arquiteto de Dados sobre como usar a nova classifica\u00e7\u00e3o imediatamente"
+    }
+  },
+  "required": [
+    "nome_do_tipo",
+    "cor_interface"
+  ]
+}

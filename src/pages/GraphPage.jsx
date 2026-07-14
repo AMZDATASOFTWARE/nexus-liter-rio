@@ -30,6 +30,11 @@ export default function GraphPage() {
   const render = useMemo(() => {
     try { return stories[0]?.render_grafo ? JSON.parse(stories[0].render_grafo) : null; } catch { return null; }
   }, [stories]);
+  const legenda = useMemo(() => {
+    const m = new Map(Object.entries(TIPO_CORES));
+    nodes.forEach((n) => { if (n.tipo && !m.has(n.tipo)) m.set(n.tipo, n.cor_grafo || "#a1a1aa"); });
+    return [...m.entries()];
+  }, [nodes]);
 
   return (
     <div className="h-screen bg-[#08080f] text-zinc-100 flex flex-col overflow-hidden">
@@ -48,7 +53,7 @@ export default function GraphPage() {
             </div>
           </div>
           <div className="hidden md:flex items-center gap-3">
-            {Object.entries(TIPO_CORES).map(([tipo, cor]) => (
+            {legenda.map(([tipo, cor]) => (
               <span key={tipo} className="flex items-center gap-1.5 text-[10px] text-zinc-500">
                 <span className="w-2 h-2 rounded-full" style={{ background: cor }} /> {tipo}
               </span>
