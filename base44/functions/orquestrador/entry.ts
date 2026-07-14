@@ -451,6 +451,41 @@ PRIMEIRA MEMÓRIA: ${alocPov?.payload_de_inicializacao?.primeira_memoria_registr
     );
     const dadosAgentesEmCena = reacoes.map((r) => `[${r.nome}${r.isPov ? ' — POV' : ''}]: ${r.resposta}`).join('\n') || '(nenhum superagente em cena)';
 
+    // ----- Árbitro de Consequências: calcula sucesso/falha da ação tentada -----
+    const povAtualChar = characters.find((c) => c.name === story.current_pov_name);
+    const npcsEmCena = emCena.filter((c) => c.name !== story.current_pov_name);
+    const dadosNpcs = npcsEmCena.map((c) => {
+      const reacao = reacoes.find((r) => r.nome === c.name);
+      return `${c.name} — estado: ${c.psychological_state || '?'} | traços: ${(c.tracos_iniciais || []).join(', ') || '?'} | perfil: ${c.description || '?'}${reacao ? ` | reação do Superagente: ${reacao.resposta.slice(0, 300)}` : ''}`;
+    }).join('\n') || 'nenhum NPC presente na cena';
+    const veredicto = await sdk.integrations.Core.InvokeLLM({
+      prompt: `Você é o Árbitro de Consequências. Sua função é ler a ação que o usuário tentou realizar na narrativa e calcular o nível de sucesso, falha ou as consequências imprevistas com base nas leis daquele universo e no estado físico/mental do personagem.
+
+REGRAS DE ARBITRAGEM:
+1. Avaliação de Capacidade: O ${story.current_pov_name || 'personagem POV'} tem as habilidades e a energia para fazer isso?
+2. Leis do Universo: A magia ou a física do universo "${universe.name}" permite essa ação?
+3. Oposição: Os NPCs (personagens controlados pelos Superagentes) na cena são fortes o suficiente para reagir, bloquear ou contra-atacar?
+
+Retorne APENAS o JSON do veredicto, sem justificativas externas.
+
+[AÇÃO TENTADA PELO USUÁRIO]: "${texto}"
+[CAPACIDADE DO PERSONAGEM POV]: ${povAtualChar ? `${povAtualChar.name} — estado: ${povAtualChar.psychological_state || '?'} | traços: ${(povAtualChar.tracos_iniciais || []).join(', ') || '?'} | memória core: ${(povAtualChar.memoria_core || []).join('; ') || 'nenhuma'} | perfil: ${povAtualChar.description || '?'}` : 'narrador onisciente (sem restrições físicas)'}
+[NPCS PRESENTES E SUAS FORÇAS]:
+${dadosNpcs}
+[REGRAS DO UNIVERSO]: ${universe.rules || 'não definidas — assuma física realista'}
+[CONTEXTO DA CENA]: ${contextoCena}`,
+      response_json_schema: {
+        type: 'object',
+        properties: {
+          status_da_acao: { type: 'string', enum: ['Sucesso_Critico', 'Sucesso_Parcial', 'Falha', 'Consequencia_Desastrosa'] },
+          descricao_do_desfecho: { type: 'string', description: 'O que realmente acontece no mundo devido a essa ação' },
+          reacao_dos_npcs: { type: 'string', description: 'Como os outros personagens na cena respondem fisicamente ou emocionalmente' },
+          diretriz_para_o_diretor_narrativo: { type: 'string', description: 'Instrução curta de como a IA narradora deve descrever essa cena' }
+        },
+        required: ['status_da_acao', 'descricao_do_desfecho', 'reacao_dos_npcs', 'diretriz_para_o_diretor_narrativo']
+      }
+    });
+
     // ----- Gestor de Transição de Consciência: aterrissagem no novo POV -----
     let paragrafoTransicao = null;
     const novoPovNome = params.mudanca_de_pov_solicitada || '';
@@ -509,6 +544,11 @@ VARIÁVEIS INJETADAS PELO SISTEMA BASE 44:
 [PERSONAGEM POV]: ${povNarrativa || 'narrador onisciente'}
 ${paragrafoTransicao ? `[PARÁGRAFO DE ATERRISSAGEM DO GESTOR DE TRANSIÇÃO DE CONSCIÊNCIA — a prosa DEVE começar exatamente com este parágrafo e continuar a partir dele]:
 ${paragrafoTransicao}` : ''}
+[VEREDICTO DO ÁRBITRO DE CONSEQUÊNCIAS — a prosa DEVE respeitar rigorosamente este desfecho; a ação do usuário NÃO acontece automaticamente como ele quis]:
+- Status da ação: ${veredicto.status_da_acao}
+- O que realmente acontece: ${veredicto.descricao_do_desfecho}
+- Reação dos NPCs: ${veredicto.reacao_dos_npcs}
+- Diretriz de narração: ${veredicto.diretriz_para_o_diretor_narrativo}
 [RESPOSTAS DOS SUPERAGENTES (REACÕES/MEMÓRIAS)]:
 ${dadosAgentesEmCena}
 [CLIMA/ANO/LINHA TEMPORAL]: Universo "${universe.name}" | ${story.data_hora_atual || story.era_inicial || '?'} | Cenário: ${story.cenario_atual || '?'} | Clima: ${story.clima_atual || story.clima_inicial || '?'} | Linha do tempo: ${story.timeline_summary || 'início'}
@@ -602,7 +642,7 @@ ESTADO GLOBAL ATUAL: momento "${atual.data_ou_hora_aproximada}", cenário "${atu
 NOTAS DO SINCRONIZADOR PARA O GRAFO: ${sincronizacao.notas_para_o_grafo}
 PERSONAGENS E AGENTES BASE44: ${characters.map((c) => `${c.name} → ${c.superagente_id || '?'}`).join('; ')}`);
 
-    return Response.json({ roteamento, storyId: story.id, alocacoes, sincronizacao, grafo, compactacoes });
+    return Response.json({ roteamento, storyId: story.id, alocacoes, veredicto, sincronizacao, grafo, compactacoes });
   } catch (error) {
     return Response.json({ error: error.message }, { status: 500 });
   }
