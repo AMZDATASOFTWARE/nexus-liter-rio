@@ -28,6 +28,14 @@
         "type": "string"
       },
       "description": "Nomes dos personagens presentes na cena atual"
+    },
+    "era_inicial": {
+      "type": "string",
+      "description": "Ano ou era inicial do Marco Zero"
+    },
+    "clima_inicial": {
+      "type": "string",
+      "description": "Clima inicial da primeira cena"
     }
   },
   "required": [

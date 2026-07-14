@@ -62,40 +62,74 @@ DIRETRIZES DE ROTEAMENTO (Avalie a intenção do usuário e retorne APENAS um JS
     // ----- Criador de Gênesis (zero absoluto) -----
     if (!story || roteamento.intencao_usuario === 'Criar_Nova_Historia') {
       const genesis = await sdk.integrations.Core.InvokeLLM({
-        prompt: `Você é o "Criador de Gênesis" do sistema literário multiversal. A partir do ditado do usuário abaixo, crie o universo (nome e regras), o título da história, os personagens iniciais (com descrição e estado psicológico), o POV inicial e o bloco de abertura em prosa literária rica, em português.
+        prompt: `Você é o Criador de Gênesis. O usuário acaba de abrir uma página em branco no aplicativo e digitou a premissa inicial de um novo universo narrativo.
 
-DITADO DO USUÁRIO: ${texto}
-CONTEXTO DO ORQUESTRADOR: ${params.contexto_imediato_a_repassar || ''}${conhecimento}`,
+SUA TAREFA:
+Transforme essa premissa bruta na base fundacional de um megagrafo. Você deve definir as leis primordiais deste universo, criar o perfil psicológico inicial do primeiro protagonista (POV) e descrever o cenário e o clima da primeira cena para dar o pontapé inicial.
+
+DIRETRIZES:
+1. Expanda a premissa do usuário em uma abertura literária de 2 a 3 parágrafos, estabelecendo o tom (sombrio, épico, melancólico, etc.), colocando o personagem em seu cenário inicial, com ganchos sensoriais fortes e encerrando com uma ação incompleta para o usuário continuar.
+2. Gere os metadados do "Marco Zero" para o banco de dados.
+3. Escreva tudo em português.
+
+CONTEXTO DO ORQUESTRADOR: ${params.contexto_imediato_a_repassar || ''}${conhecimento}
+
+[PREMISSA DO USUÁRIO PARA A NOVA HISTÓRIA]:
+"${texto}"`,
         response_json_schema: {
           type: 'object',
           properties: {
-            universo: { type: 'object', properties: { name: { type: 'string' }, rules: { type: 'string' } }, required: ['name', 'rules'] },
-            titulo: { type: 'string' },
-            personagens: { type: 'array', items: { type: 'object', properties: { name: { type: 'string' }, description: { type: 'string' }, psychological_state: { type: 'string' } }, required: ['name'] } },
-            pov: { type: 'string' },
-            prosa: { type: 'string' },
-            resumo_timeline: { type: 'string' }
+            literatura: { type: 'string', description: 'Abertura imersiva de 2 a 3 parágrafos' },
+            metadados_genesis: {
+              type: 'object',
+              properties: {
+                universo_id: { type: 'string', description: 'Nome do universo' },
+                titulo_historia: { type: 'string' },
+                leis_fundamentais: { type: 'array', items: { type: 'string' } },
+                ano_ou_era_inicial: { type: 'string' },
+                clima_inicial: { type: 'string' },
+                primeiro_personagem_pov: {
+                  type: 'object',
+                  properties: {
+                    nome: { type: 'string' },
+                    estado_mental_base: { type: 'string' },
+                    localizacao_inicial: { type: 'string' }
+                  },
+                  required: ['nome', 'estado_mental_base', 'localizacao_inicial']
+                }
+              },
+              required: ['universo_id', 'titulo_historia', 'leis_fundamentais', 'ano_ou_era_inicial', 'clima_inicial', 'primeiro_personagem_pov']
+            }
           },
-          required: ['universo', 'titulo', 'prosa']
+          required: ['literatura', 'metadados_genesis']
         }
       });
 
-      const uni = await sdk.entities.Universe.create(genesis.universo);
-      const chars = genesis.personagens?.length
-        ? await sdk.entities.Character.bulkCreate(genesis.personagens.map((p) => ({ ...p, universe_id: uni.id })))
-        : [];
-      const povChar = chars.find((c) => c.name === genesis.pov);
+      const meta = genesis.metadados_genesis;
+      const pov = meta.primeiro_personagem_pov;
+      const uni = await sdk.entities.Universe.create({
+        name: meta.universo_id,
+        rules: (meta.leis_fundamentais || []).join(' | ')
+      });
+      const povChar = await sdk.entities.Character.create({
+        universe_id: uni.id,
+        name: pov.nome,
+        description: `Localização inicial: ${pov.localizacao_inicial}`,
+        psychological_state: pov.estado_mental_base
+      });
       const newStory = await sdk.entities.Story.create({
         universe_id: uni.id,
-        title: genesis.titulo,
-        timeline_summary: genesis.resumo_timeline || '',
-        current_pov_character_id: povChar?.id || null,
-        current_pov_name: genesis.pov || null,
-        characters_in_scene: chars.map((c) => c.name)
+        title: meta.titulo_historia,
+        timeline_summary: `Marco Zero — ${meta.ano_ou_era_inicial}, ${meta.clima_inicial}. ${pov.nome} em ${pov.localizacao_inicial}.`,
+        current_pov_character_id: povChar.id,
+        current_pov_name: pov.nome,
+        characters_in_scene: [pov.nome],
+        era_inicial: meta.ano_ou_era_inicial,
+        clima_inicial: meta.clima_inicial
       });
       await sdk.entities.NarrativeBlock.bulkCreate([
         { story_id: newStory.id, type: 'USER', content: texto },
-        { story_id: newStory.id, type: 'AI', content: genesis.prosa, pov_character_name: genesis.pov || null, intencao: roteamento.intencao_usuario, agentes_acionados: agentes }
+        { story_id: newStory.id, type: 'AI', content: genesis.literatura, pov_character_name: pov.nome, psychological_state: pov.estado_mental_base, intencao: roteamento.intencao_usuario, agentes_acionados: agentes }
       ]);
       return Response.json({ roteamento, storyId: newStory.id });
     }
