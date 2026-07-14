@@ -16,7 +16,11 @@
     },
     "tipo_de_relacao": {
       "type": "string",
-      "description": "estava_presente_em | alterou_o_curso_de | possui_trauma_com | ocorreu_durante"
+      "description": "Verbo relacional claro e definitivo (ex: amaldicoou, pertence_a, foi_destruido_em, venera, corrompido_por)"
+    },
+    "contexto_da_conexao": {
+      "type": "string",
+      "description": "Por que essa conex\u00e3o surgiu neste turno"
     }
   },
   "required": [

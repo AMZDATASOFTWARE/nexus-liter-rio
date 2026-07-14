@@ -12,7 +12,7 @@
     },
     "tipo": {
       "type": "string",
-      "description": "Categoria do n\u00f3 \u2014 tipos base (Personagem, Cenario, Clima, LinhaTemporal, Memoria, Objeto, Nexus, Anomalia) ou categorias din\u00e2micas criadas pelo Engenheiro Ontol\u00f3gico Din\u00e2mico (registradas em OntologyType)"
+      "description": "Categoria do n\u00f3 \u2014 tipos base (Personagem, Cenario, Clima, LinhaTemporal, Memoria, Objeto, Nexus, Anomalia, Faccao_Grupo, Conceito_Ideologia, Fauna_Flora) ou categorias din\u00e2micas criadas pelo Engenheiro Ontol\u00f3gico Din\u00e2mico (registradas em OntologyType)"
     },
     "rotulo": {
       "type": "string",
@@ -21,6 +21,10 @@
     "descricao_breve": {
       "type": "string",
       "description": "Resumo gerado com base no contexto"
+    },
+    "estado_atual": {
+      "type": "string",
+      "description": "Estado do n\u00f3 na narrativa: Ativo | Destru\u00eddo | Esquecido"
     },
     "cor_grafo": {
       "type": "string",
