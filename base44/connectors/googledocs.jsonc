@@ -1,0 +1,8 @@
+{
+  "type": "googledocs",
+  "scopes": [
+    "https://www.googleapis.com/auth/documents.readonly",
+    "https://www.googleapis.com/auth/drive.readonly",
+    "email"
+  ]
+}
