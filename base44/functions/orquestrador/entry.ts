@@ -35,6 +35,7 @@ LÓGICA DE ALOCAÇÃO:
 2. Encontre um Superagente que tenha menos de 100 personagens sob sua custódia.
 3. Se houver relação de facção ou família (ex: o novo personagem é irmão de alguém já existente), tente alocá-lo no mesmo Superagente para otimização de cluster, DESDE QUE o agente tenha espaço. Caso contrário, aloque no agente mais vazio.
 4. Gere o comando de registro para inicializar a persona.
+5. SISTEMA DE VOZ ÚNICA (regra rigorosa): Para cada novo personagem detectado, você DEVE forjar uma identidade verbal única. Defina uma 'verbosidade' (1 a 10). Crie 'vicios_linguagem' orgânicos (tiques verbais, repetições). O 'perfil_linguistico' e o 'estilo_pensamento' devem refletir a classe, facção e os traumas do personagem. Eles não podem soar genéricos; devem parecer humanos reais com falhas de comunicação.
 
 ${novosPersonagens.map((p) => `[NOVO PERSONAGEM DETECTADO]: ${p.nome}\n[CONTEXTO DE SUA APARIÇÃO]: ${p.contexto}`).join('\n\n')}
 [MAPA DE CARGA DOS SUPERAGENTES]: ${mapaCarga}
@@ -54,9 +55,13 @@ ${novosPersonagens.map((p) => `[NOVO PERSONAGEM DETECTADO]: ${p.nome}\n[CONTEXTO
                 type: 'object',
                 properties: {
                   tracos_iniciais: { type: 'array', items: { type: 'string' } },
-                  primeira_memoria_registrada: { type: 'string' }
+                  primeira_memoria_registrada: { type: 'string' },
+                  perfil_linguistico: { type: 'string', description: 'Estilo de fala (Ex: Arcaico, Gírias cyberpunks, Formal, Gago)' },
+                  vicios_linguagem: { type: 'array', items: { type: 'string' }, description: 'Palavras ou sons repetidos (Ex: Sabe?, Tipo, pigarros, suspiros)' },
+                  verbosidade: { type: 'number', description: 'Nível de fala de 1 a 10 (1 = monossilábico, 10 = tagarela/prolixo)' },
+                  estilo_pensamento: { type: 'string', description: 'Como a mente funciona (Ex: Analítico e frio, Emocional e caótico, Paranóico)' }
                 },
-                required: ['tracos_iniciais', 'primeira_memoria_registrada']
+                required: ['tracos_iniciais', 'primeira_memoria_registrada', 'perfil_linguistico', 'vicios_linguagem', 'verbosidade', 'estilo_pensamento']
               }
             },
             required: ['novo_personagem', 'superagente_designado', 'motivo_da_alocacao', 'payload_de_inicializacao']
@@ -590,7 +595,11 @@ CONTEXTO DO ORQUESTRADOR: ${params.contexto_imediato_a_repassar || ''}${conhecim
         superagente_id: alocPov?.superagente_designado || null,
         motivo_alocacao: alocPov?.motivo_da_alocacao || null,
         tracos_iniciais: alocPov?.payload_de_inicializacao?.tracos_iniciais || [],
-        primeira_memoria: alocPov?.payload_de_inicializacao?.primeira_memoria_registrada || null
+        primeira_memoria: alocPov?.payload_de_inicializacao?.primeira_memoria_registrada || null,
+        perfil_linguistico: alocPov?.payload_de_inicializacao?.perfil_linguistico || null,
+        vicios_linguagem: alocPov?.payload_de_inicializacao?.vicios_linguagem || [],
+        verbosidade: alocPov?.payload_de_inicializacao?.verbosidade || null,
+        estilo_pensamento: alocPov?.payload_de_inicializacao?.estilo_pensamento || null
       });
       const newStory = await sdk.entities.Story.create({
         universe_id: uni.id,
@@ -673,7 +682,11 @@ DIRETRIZES DE BIFURCAÇÃO:
         tracos_iniciais: c.tracos_iniciais || [],
         primeira_memoria: c.primeira_memoria || null,
         memoria_core: c.memoria_core || [],
-        eventos_historicos: c.eventos_historicos || null
+        eventos_historicos: c.eventos_historicos || null,
+        perfil_linguistico: c.perfil_linguistico || null,
+        vicios_linguagem: c.vicios_linguagem || [],
+        verbosidade: c.verbosidade || null,
+        estilo_pensamento: c.estilo_pensamento || null
       })));
 
       // Nova história na linha bifurcada
@@ -784,7 +797,11 @@ DIRETRIZES DE COLISÃO:
             tracos_iniciais: c.tracos_iniciais || [],
             primeira_memoria: c.primeira_memoria || null,
             memoria_core: c.memoria_core || [],
-            eventos_historicos: c.eventos_historicos || null
+            eventos_historicos: c.eventos_historicos || null,
+            perfil_linguistico: c.perfil_linguistico || null,
+            vicios_linguagem: c.vicios_linguagem || [],
+            verbosidade: c.verbosidade || null,
+            estilo_pensamento: c.estilo_pensamento || null
           })));
           await Promise.all(visitantesEmCena.map(async (orig) => {
             const clone = clonesVisitantes.find((c) => c.name === orig.name);
@@ -1088,7 +1105,11 @@ No campo "prosa", escreva a continuação literária direta, em português. Sem 
           superagente_id: a?.superagente_designado || null,
           motivo_alocacao: a?.motivo_da_alocacao || null,
           tracos_iniciais: a?.payload_de_inicializacao?.tracos_iniciais || [],
-          primeira_memoria: a?.payload_de_inicializacao?.primeira_memoria_registrada || null
+          primeira_memoria: a?.payload_de_inicializacao?.primeira_memoria_registrada || null,
+          perfil_linguistico: a?.payload_de_inicializacao?.perfil_linguistico || null,
+          vicios_linguagem: a?.payload_de_inicializacao?.vicios_linguagem || [],
+          verbosidade: a?.payload_de_inicializacao?.verbosidade || null,
+          estilo_pensamento: a?.payload_de_inicializacao?.estilo_pensamento || null
         };
       }));
       characters = characters.concat(criados);

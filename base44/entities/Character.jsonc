@@ -62,6 +62,25 @@
     "diretriz_comportamental": {
       "type": "string",
       "description": "Instru\u00e7\u00e3o do Assimilador para a IA Narradora sobre como o viajante deve agir daqui em diante"
+    },
+    "perfil_linguistico": {
+      "type": "string",
+      "description": "Estilo de fala (Ex: Arcaico, G\u00edrias cyberpunks, Formal, Gago)"
+    },
+    "vicios_linguagem": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Palavras ou sons repetidos (Ex: ['Sabe?', 'Tipo', pigarros, suspiros])"
+    },
+    "verbosidade": {
+      "type": "number",
+      "description": "N\u00edvel de fala de 1 a 10 (1 = monossil\u00e1bico/silencioso, 10 = tagarela/prolixo)"
+    },
+    "estilo_pensamento": {
+      "type": "string",
+      "description": "Como a mente funciona (Ex: Anal\u00edtico e frio, Emocional e ca\u00f3tico, Paran\u00f3ico)"
     }
   },
   "required": [
