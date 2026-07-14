@@ -36,6 +36,22 @@
     "clima_inicial": {
       "type": "string",
       "description": "Clima inicial da primeira cena"
+    },
+    "data_hora_atual": {
+      "type": "string",
+      "description": "Data ou hora aproximada atual da narrativa"
+    },
+    "cenario_atual": {
+      "type": "string",
+      "description": "Local/cen\u00e1rio focado atualmente"
+    },
+    "clima_atual": {
+      "type": "string",
+      "description": "Condi\u00e7\u00e3o clim\u00e1tica/atmosf\u00e9rica atual"
+    },
+    "notas_grafo": {
+      "type": "string",
+      "description": "Notas para o Arquiteto de Grafos sobre o cen\u00e1rio visual"
     }
   },
   "required": [

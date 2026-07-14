@@ -55,6 +55,46 @@ ${novosPersonagens.map((p) => `[NOVO PERSONAGEM DETECTADO]: ${p.nome}\n[CONTEXTO
   return res.alocacoes || [];
 }
 
+// ----- Sincronizador de Estado Global: atualiza tempo, clima e cenário após cada turno -----
+async function sincronizarEstadoGlobal(sdk, universeName, textoUltimoTurno, estadoAnterior) {
+  return await sdk.integrations.Core.InvokeLLM({
+    prompt: `Você é o Sincronizador de Estado Global. Após a última interação narrativa entre o usuário e os agentes, você deve analisar o texto resultante para atualizar as condições físicas e temporais do universo focado.
+
+O QUE VOCÊ DEVE RASTREAR:
+1. Tempo: Passaram-se minutos, horas, dias ou anos? Ocorreu um flashback para uma data anterior?
+2. Clima e Atmosfera: A tempestade começou? O sol se pôs? O ambiente ficou tóxico?
+3. Deslocamento: O personagem POV mudou de cenário? (Ex: Saiu da Taverna e foi para a Floresta).
+
+Se o texto não indicar mudanças claras, mantenha o estado anterior, mas aplique o decurso natural do tempo (ex: se demorou muito conversando, a tarde pode ter virado noite).
+
+O universo focado é: "${universeName}".
+
+[TEXTO GERADO NA ÚLTIMA INTERAÇÃO]:
+"${textoUltimoTurno}"
+
+[ESTADO GLOBAL ANTERIOR]:
+${estadoAnterior}`,
+    response_json_schema: {
+      type: 'object',
+      properties: {
+        atualizacao_de_estado: {
+          type: 'object',
+          properties: {
+            linha_temporal_atual: { type: 'string', description: 'Nome/Designação do Universo' },
+            data_ou_hora_aproximada: { type: 'string' },
+            cenario_focado: { type: 'string' },
+            condicao_climatica_atmosferica: { type: 'string' }
+          },
+          required: ['linha_temporal_atual', 'data_ou_hora_aproximada', 'cenario_focado', 'condicao_climatica_atmosferica']
+        },
+        mudanca_drastica_detectada: { type: 'boolean' },
+        notas_para_o_grafo: { type: 'string', description: 'Instruções curtas para o Arquiteto de Grafos sobre o cenário visual da interface' }
+      },
+      required: ['atualizacao_de_estado', 'mudanca_drastica_detectada', 'notas_para_o_grafo']
+    }
+  });
+}
+
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
@@ -188,7 +228,10 @@ CONTEXTO DO ORQUESTRADOR: ${params.contexto_imediato_a_repassar || ''}${conhecim
         current_pov_name: pov.nome,
         characters_in_scene: [pov.nome],
         era_inicial: meta.ano_ou_era_inicial,
-        clima_inicial: meta.clima_inicial
+        clima_inicial: meta.clima_inicial,
+        data_hora_atual: meta.ano_ou_era_inicial,
+        cenario_atual: pov.localizacao_inicial,
+        clima_atual: meta.clima_inicial
       });
       await sdk.entities.NarrativeBlock.bulkCreate([
         { story_id: newStory.id, type: 'USER', content: texto },
@@ -248,18 +291,28 @@ Escreva o próximo bloco narrativo em português e atualize os dados.`,
       if (c) await sdk.entities.Character.update(c.id, { psychological_state: upd.psychological_state });
     }
     const povChar = characters.find((c) => c.name === resultado.pov);
+
+    // Sincronizador de Estado Global
+    const estadoAnterior = `{ "linha_temporal_atual": "${universe.name}", "data_ou_hora_aproximada": "${story.data_hora_atual || story.era_inicial || 'desconhecida'}", "cenario_focado": "${story.cenario_atual || 'desconhecido'}", "condicao_climatica_atmosferica": "${story.clima_atual || story.clima_inicial || 'desconhecida'}" }`;
+    const sincronizacao = await sincronizarEstadoGlobal(sdk, universe.name, resultado.prosa, estadoAnterior);
+    const atual = sincronizacao.atualizacao_de_estado;
+
     await sdk.entities.Story.update(story.id, {
       timeline_summary: resultado.resumo_timeline,
       current_pov_character_id: povChar?.id || story.current_pov_character_id,
       current_pov_name: resultado.pov || story.current_pov_name,
-      characters_in_scene: resultado.personagens_em_cena || story.characters_in_scene
+      characters_in_scene: resultado.personagens_em_cena || story.characters_in_scene,
+      data_hora_atual: atual.data_ou_hora_aproximada,
+      cenario_atual: atual.cenario_focado,
+      clima_atual: atual.condicao_climatica_atmosferica,
+      notas_grafo: sincronizacao.notas_para_o_grafo
     });
     await sdk.entities.NarrativeBlock.bulkCreate([
       { story_id: story.id, type: 'USER', content: texto },
       { story_id: story.id, type: 'AI', content: resultado.prosa, pov_character_name: resultado.pov || story.current_pov_name, psychological_state: resultado.estado_psicologico_pov || null, intencao: roteamento.intencao_usuario, agentes_acionados: agentes }
     ]);
 
-    return Response.json({ roteamento, storyId: story.id, alocacoes });
+    return Response.json({ roteamento, storyId: story.id, alocacoes, sincronizacao });
   } catch (error) {
     return Response.json({ error: error.message }, { status: 500 });
   }
