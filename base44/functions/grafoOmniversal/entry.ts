@@ -355,12 +355,101 @@ ${mapaArestas || 'nenhuma'}`,
   };
 }
 
+// ----- Arquiteto de Estratificação Temporal: desdobra a esfera em camadas empilhadas pelo tempo -----
+async function estratificacaoTemporal(sdk) {
+  const [nos, arestas, stories, universos] = await Promise.all([
+    sdk.entities.GraphNode.list(undefined, 500),
+    sdk.entities.GraphEdge.list(undefined, 1000),
+    sdk.entities.Story.list(undefined, 100),
+    sdk.entities.Universe.list(undefined, 100)
+  ]);
+  if (!nos.length) return { temporal_layout_active: false, z_axis_mapping: null, temporal_layers: [], wormhole_edges: [], nos: [], arestas: [] };
+  const nomeUni = new Map(universos.map((u) => [u.id, u.name]));
+  const inventario = nos.map((n) => `${n.node_id} [${n.tipo}] "${n.rotulo}" | universo: ${nomeUni.get(n.universe_id) || '?'} | estado: ${n.estado_atual || '?'}`).join('\n');
+  const mapaArestas = arestas.map((a) => `${a.origem} -> ${a.tipo_de_relacao} -> ${a.destino}`).join('; ');
+  const linhasTemporais = stories.map((s) => `História "${s.title}" (universo: ${nomeUni.get(s.universe_id) || '?'}): era inicial "${s.era_inicial || '?'}", momento atual "${s.data_hora_atual || '?'}", linha do tempo: ${(s.timeline_summary || '').slice(0, 400)}`).join('\n');
+
+  const res = await sdk.integrations.Core.InvokeLLM({
+    prompt: `Você é o Arquiteto de Estratificação Temporal. O usuário ativou a visualização em "Camadas Temporais" no painel do Base 44. A estrutura esférica do multiverso agora deve ser desdobrada e empilhada fisicamente com base na passagem do tempo.
+
+DIRETRIZES DE ESTRATIFICAÇÃO:
+1. Fatiamento pelo Eixo Z (Profundidade): Transforme o tempo em coordenadas de profundidade. O ano/era mais antigo da história deve ficar na camada inferior (ex: Z = -1000). O momento "Presente" da narrativa fica na camada central (Z = 0). O futuro profetizado ou ramificado fica nas camadas superiores (Z = 1000).
+2. Conexões Inter-temporais (Buracos de Minhoca): Se houver uma viagem no tempo ou um flashback, a aresta que conecta o Presente ao Passado deve ser renderizada como um túnel vertical brilhante (Wormhole) que fura as camadas do tempo.
+3. Isolamento de Era: Crie agrupamentos onde todos os personagens e cenários que só existiram no "Ano 100" fiquem flutuando no mesmo disco temporal.
+
+REGRAS TÉCNICAS:
+- Em "nodes_in_layer", "source_id" e "target_id", use EXCLUSIVAMENTE node_ids do inventário abaixo.
+- TODO nó do inventário deve pertencer a exatamente UMA camada.
+- "z_coordinate_range" é um par [min, max] entre -1000 e 1000.
+- Wormholes só entre camadas diferentes (viagem no tempo, flashback, bifurcação temporal, memória de outra era).
+
+[DADOS TEMPORAIS DO OMNIVERSO — LINHAS TEMPORAIS E EVENTOS]:
+${linhasTemporais || 'nenhuma linha temporal registrada'}
+[NÓS DO OMNIVERSO]:
+${inventario}
+[ARESTAS DO OMNIVERSO]:
+${mapaArestas || 'nenhuma'}`,
+    response_json_schema: {
+      type: 'object',
+      properties: {
+        temporal_layout_active: { type: 'boolean' },
+        z_axis_mapping: {
+          type: 'object',
+          properties: {
+            scale_multiplier: { type: 'number' },
+            oldest_era: { type: 'string', description: 'Nome ou Ano' },
+            current_era: { type: 'string', description: 'Nome ou Ano' }
+          },
+          required: ['scale_multiplier', 'oldest_era', 'current_era']
+        },
+        temporal_layers: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              layer_name: { type: 'string', description: 'Ex: Era da Gênesis' },
+              z_coordinate_range: { type: 'array', items: { type: 'number' }, description: '[min, max] entre -1000 e 1000' },
+              nodes_in_layer: { type: 'array', items: { type: 'string' } }
+            },
+            required: ['layer_name', 'z_coordinate_range', 'nodes_in_layer']
+          }
+        },
+        wormhole_edges: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              source_id: { type: 'string' },
+              target_id: { type: 'string' },
+              render_style: { type: 'string', description: 'Ex: dashed_neon_tube' }
+            },
+            required: ['source_id', 'target_id', 'render_style']
+          }
+        }
+      },
+      required: ['temporal_layout_active', 'z_axis_mapping', 'temporal_layers', 'wormhole_edges']
+    }
+  });
+
+  const validos = new Set(nos.map((n) => n.node_id));
+  const layers = (res.temporal_layers || []).map((l) => ({
+    ...l,
+    nodes_in_layer: (l.nodes_in_layer || []).filter((id) => validos.has(id))
+  })).filter((l) => l.nodes_in_layer.length);
+  const wormholes = (res.wormhole_edges || []).filter((w) => validos.has(w.source_id) && validos.has(w.target_id));
+  return { temporal_layout_active: true, z_axis_mapping: res.z_axis_mapping, temporal_layers: layers, wormhole_edges: wormholes, nos, arestas };
+}
+
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
     const sdk = base44.asServiceRole;
     const { acao, universeId, dadosBrutos, storyId } = await req.json();
 
+    if (acao === 'temporal') {
+      const r = await estratificacaoTemporal(sdk);
+      return Response.json(r);
+    }
     if (acao === 'fisica3d') {
       const r = await fisicaDados3D(sdk);
       return Response.json(r);

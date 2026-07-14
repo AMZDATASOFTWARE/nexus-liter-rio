@@ -2,21 +2,28 @@ import React, { useState, useMemo } from "react";
 import { useParams, Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { base44 } from "@/api/base44Client";
-import { ArrowLeft, Loader2, Globe, Share2 } from "lucide-react";
+import { ArrowLeft, Loader2, Globe, Share2, Layers } from "lucide-react";
 import ForceGraph from "@/components/graph/ForceGraph";
 import SphereGraph3D from "@/components/graph/SphereGraph3D";
+import TemporalGraph3D from "@/components/graph/TemporalGraph3D";
 import NodeDetails from "@/components/graph/NodeDetails";
 import { TIPO_CORES } from "@/components/graph/graphUtils";
 
 export default function GraphPage() {
   const { universeId } = useParams();
   const [selected, setSelected] = useState(null);
-  const [modo3d, setModo3d] = useState(false);
+  const [modo, setModo] = useState("2d");
 
   const { data: fisica, isLoading: loadingFisica } = useQuery({
     queryKey: ["fisica3d"],
     queryFn: async () => (await base44.functions.invoke("grafoOmniversal", { acao: "fisica3d" })).data,
-    enabled: modo3d,
+    enabled: modo === "esfera",
+    staleTime: 5 * 60 * 1000,
+  });
+  const { data: temporal, isLoading: loadingTemporal } = useQuery({
+    queryKey: ["temporal3d"],
+    queryFn: async () => (await base44.functions.invoke("grafoOmniversal", { acao: "temporal" })).data,
+    enabled: modo === "tempo",
     staleTime: 5 * 60 * 1000,
   });
 
@@ -61,13 +68,26 @@ export default function GraphPage() {
               </p>
             </div>
           </div>
-          <button
-            onClick={() => setModo3d((v) => !v)}
-            className={`shrink-0 flex items-center gap-1.5 text-[11px] px-3 py-1.5 rounded-full border transition-colors ${modo3d ? "border-emerald-500/50 text-emerald-300 bg-emerald-500/10" : "border-zinc-800 text-zinc-400 hover:text-zinc-200"}`}
-          >
-            {modo3d ? <Share2 className="w-3.5 h-3.5" /> : <Globe className="w-3.5 h-3.5" />}
-            {modo3d ? "Grafo 2D" : "Esfera 3D"}
-          </button>
+          <div className="shrink-0 flex items-center gap-1.5">
+            <button
+              onClick={() => setModo("2d")}
+              className={`flex items-center gap-1.5 text-[11px] px-3 py-1.5 rounded-full border transition-colors ${modo === "2d" ? "border-emerald-500/50 text-emerald-300 bg-emerald-500/10" : "border-zinc-800 text-zinc-400 hover:text-zinc-200"}`}
+            >
+              <Share2 className="w-3.5 h-3.5" /> 2D
+            </button>
+            <button
+              onClick={() => setModo("esfera")}
+              className={`flex items-center gap-1.5 text-[11px] px-3 py-1.5 rounded-full border transition-colors ${modo === "esfera" ? "border-emerald-500/50 text-emerald-300 bg-emerald-500/10" : "border-zinc-800 text-zinc-400 hover:text-zinc-200"}`}
+            >
+              <Globe className="w-3.5 h-3.5" /> Esfera 3D
+            </button>
+            <button
+              onClick={() => setModo("tempo")}
+              className={`flex items-center gap-1.5 text-[11px] px-3 py-1.5 rounded-full border transition-colors ${modo === "tempo" ? "border-cyan-500/50 text-cyan-300 bg-cyan-500/10" : "border-zinc-800 text-zinc-400 hover:text-zinc-200"}`}
+            >
+              <Layers className="w-3.5 h-3.5" /> Camadas Temporais
+            </button>
+          </div>
           <div className="hidden md:flex items-center gap-3">
             {legenda.map(([tipo, cor]) => (
               <span key={tipo} className="flex items-center gap-1.5 text-[10px] text-zinc-500">
@@ -78,7 +98,7 @@ export default function GraphPage() {
         </div>
       </header>
       <div className="flex-1 relative">
-        {modo3d ? (
+        {modo === "esfera" ? (
           loadingFisica || !fisica ? (
             <div className="h-full flex flex-col items-center justify-center gap-3 text-zinc-500">
               <Loader2 className="w-5 h-5 animate-spin" />
@@ -86,6 +106,15 @@ export default function GraphPage() {
             </div>
           ) : (
             <SphereGraph3D nos={fisica.nos || []} arestas={fisica.arestas || []} metadata={fisica.nodes_physics_metadata || []} onSelect={setSelected} />
+          )
+        ) : modo === "tempo" ? (
+          loadingTemporal || !temporal ? (
+            <div className="h-full flex flex-col items-center justify-center gap-3 text-zinc-500">
+              <Loader2 className="w-5 h-5 animate-spin" />
+              <p className="text-xs">O Arquiteto de Estratificação Temporal está fatiando o Omniverso pelo eixo do tempo...</p>
+            </div>
+          ) : (
+            <TemporalGraph3D nos={temporal.nos || []} arestas={temporal.arestas || []} layers={temporal.temporal_layers || []} wormholes={temporal.wormhole_edges || []} onSelect={setSelected} />
           )
         ) : isLoading ? (
           <div className="h-full flex items-center justify-center text-zinc-500">
@@ -98,7 +127,7 @@ export default function GraphPage() {
         ) : (
           <ForceGraph nodes={nodes} edges={edges} selectedId={selected?.node_id} onSelect={setSelected} render={render} />
         )}
-        <NodeDetails node={selected} edges={modo3d && fisica ? fisica.arestas : edges} nodes={modo3d && fisica ? fisica.nos : nodes} onClose={() => setSelected(null)} />
+        <NodeDetails node={selected} edges={modo === "esfera" && fisica ? fisica.arestas : modo === "tempo" && temporal ? temporal.arestas : edges} nodes={modo === "esfera" && fisica ? fisica.nos : modo === "tempo" && temporal ? temporal.nos : nodes} onClose={() => setSelected(null)} />
       </div>
     </div>
   );
