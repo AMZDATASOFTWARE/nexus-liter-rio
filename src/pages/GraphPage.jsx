@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useRef } from "react";
 import { useParams, Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { base44 } from "@/api/base44Client";
@@ -7,12 +7,29 @@ import ForceGraph from "@/components/graph/ForceGraph";
 import SphereGraph3D from "@/components/graph/SphereGraph3D";
 import TemporalGraph3D from "@/components/graph/TemporalGraph3D";
 import NodeDetails from "@/components/graph/NodeDetails";
+import LodHud from "@/components/graph/LodHud";
 import { TIPO_CORES } from "@/components/graph/graphUtils";
 
 export default function GraphPage() {
   const { universeId } = useParams();
   const [selected, setSelected] = useState(null);
   const [modo, setModo] = useState("2d");
+  const [lod, setLod] = useState(null);
+  const [lodLoading, setLodLoading] = useState(false);
+  const lodBusy = useRef(false);
+
+  const handleViewportEvent = async (evt) => {
+    if (lodBusy.current) return;
+    lodBusy.current = true;
+    setLodLoading(true);
+    try {
+      const r = (await base44.functions.invoke("grafoOmniversal", { acao: "viewport", ...evt })).data;
+      setLod(r);
+    } finally {
+      lodBusy.current = false;
+      setLodLoading(false);
+    }
+  };
 
   const { data: fisica, isLoading: loadingFisica } = useQuery({
     queryKey: ["fisica3d"],
@@ -105,7 +122,7 @@ export default function GraphPage() {
               <p className="text-xs">O Físico de Dados 3D está calculando as forças centrípetas do Omniverso...</p>
             </div>
           ) : (
-            <SphereGraph3D nos={fisica.nos || []} arestas={fisica.arestas || []} metadata={fisica.nodes_physics_metadata || []} onSelect={setSelected} />
+            <SphereGraph3D nos={fisica.nos || []} arestas={fisica.arestas || []} metadata={fisica.nodes_physics_metadata || []} lod={lod} onViewportEvent={handleViewportEvent} onSelect={setSelected} />
           )
         ) : modo === "tempo" ? (
           loadingTemporal || !temporal ? (
@@ -127,6 +144,7 @@ export default function GraphPage() {
         ) : (
           <ForceGraph nodes={nodes} edges={edges} selectedId={selected?.node_id} onSelect={setSelected} render={render} />
         )}
+        {modo === "esfera" && <LodHud lod={lod} loading={lodLoading} onReset={() => setLod(null)} />}
         <NodeDetails node={selected} edges={modo === "esfera" && fisica ? fisica.arestas : modo === "tempo" && temporal ? temporal.arestas : edges} nodes={modo === "esfera" && fisica ? fisica.nos : modo === "tempo" && temporal ? temporal.nos : nodes} onClose={() => setSelected(null)} />
       </div>
     </div>

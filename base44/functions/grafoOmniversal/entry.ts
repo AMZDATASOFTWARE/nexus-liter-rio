@@ -440,12 +440,76 @@ ${mapaArestas || 'nenhuma'}`,
   return { temporal_layout_active: true, z_axis_mapping: res.z_axis_mapping, temporal_layers: layers, wormhole_edges: wormholes, nos, arestas };
 }
 
+// ----- Controlador de Viewport e LOD: decide o que renderizar conforme a câmera do usuário -----
+async function controladorViewport(sdk, evento, cameraAtual, visiveis) {
+  const [nos, universos] = await Promise.all([
+    sdk.entities.GraphNode.list(undefined, 500),
+    sdk.entities.Universe.list(undefined, 100)
+  ]);
+  const nomeUni = new Map(universos.map((u) => [u.id, u.name]));
+  const tiposExistentes = [...new Set(nos.map((n) => n.tipo))];
+  const inventario = nos.map((n) => `${n.node_id} [${n.tipo}] "${n.rotulo}" | universo: ${nomeUni.get(n.universe_id) || '?'}`).join('\n');
+
+  const res = await sdk.integrations.Core.InvokeLLM({
+    prompt: `Você é o Controlador de Viewport e LOD (Level of Detail) do frontend. O usuário está interagindo com um grafo 3D colossal contendo universos inteiros. Sua função é receber as intenções de movimento de câmera do usuário (Zoom In, Zoom Out, Pan/Arrastar) e determinar QUAIS dados o Base 44 deve enviar para a tela para economizar memória e garantir uma navegação fluida em 60fps.
+
+MECÂNICA DE NAVEGAÇÃO:
+1. Zoom Out Máximo (Visão Deus): O usuário reduziu o zoom para ver o todo. Oculte TODOS os nós de Personagens, Objetos e Memórias. Renderize APENAS os macro-nós de [Universo] e os grandes [Nós Nexus] de colisão, agrupados como se fossem galáxias.
+2. Pan/Arrasto (Exploração): O usuário arrastou a câmera para a região do [Gênesis B]. Mantenha o Gênesis A renderizado em "low-poly" (baixa resolução, sem nomes) e comece a injetar os detalhes do Gênesis B na memória da tela.
+3. Zoom In Extremo (Visão Microscópica): O usuário focou em um único Personagem. Esconda o resto da esfera. Exiba a rede neural pessoal daquele personagem (seus traumas diretos, objetos no inventário e as pessoas que estão fisicamente na mesma sala que ele agora).
+
+REGRAS TÉCNICAS:
+- Em "node_types_to_hide" e "node_types_to_show", use APENAS tipos existentes no grafo: ${tiposExistentes.join(', ')}.
+- Em "focus_center_id", use um node_id EXATO do inventário, ou deixe vazio se não houver foco único.
+- "ui_feedback" deve ser uma frase curta e imersiva em português para o painel de navegação.
+
+[AÇÃO DE INTERAÇÃO DO USUÁRIO]: "${evento}"
+[NÍVEL DE ZOOM ATUAL E POSIÇÃO DA CÂMERA]: ${JSON.stringify(cameraAtual || {})}
+[ESTADO DO GRAFO EM TELA (IDS VISÍVEIS NO MOMENTO)]: ${(visiveis || []).join(', ') || 'todos'}
+[INVENTÁRIO COMPLETO DE NÓS]:
+${inventario}`,
+    response_json_schema: {
+      type: 'object',
+      properties: {
+        viewport_action_received: { type: 'string', enum: ['Zoom_In', 'Zoom_Out', 'Drag_Pan'] },
+        camera_target_coordinates: {
+          type: 'object',
+          properties: { x: { type: 'number' }, y: { type: 'number' }, z: { type: 'number' } },
+          required: ['x', 'y', 'z']
+        },
+        lod_level: { type: 'string', enum: ['Macro_Galactic', 'Meso_Faction', 'Micro_Personal'] },
+        culling_instructions: {
+          type: 'object',
+          properties: {
+            node_types_to_hide: { type: 'array', items: { type: 'string' } },
+            node_types_to_show: { type: 'array', items: { type: 'string' } },
+            focus_center_id: { type: 'string', description: 'node_id focado, ou string vazia' }
+          },
+          required: ['node_types_to_hide', 'node_types_to_show', 'focus_center_id']
+        },
+        ui_feedback: { type: 'string' }
+      },
+      required: ['viewport_action_received', 'lod_level', 'culling_instructions', 'ui_feedback']
+    }
+  });
+
+  const validos = new Set(nos.map((n) => n.node_id));
+  if (res.culling_instructions && !validos.has(res.culling_instructions.focus_center_id)) {
+    res.culling_instructions.focus_center_id = '';
+  }
+  return res;
+}
+
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
     const sdk = base44.asServiceRole;
-    const { acao, universeId, dadosBrutos, storyId } = await req.json();
+    const { acao, universeId, dadosBrutos, storyId, evento, camera, visiveis } = await req.json();
 
+    if (acao === 'viewport') {
+      const r = await controladorViewport(sdk, evento || 'interação de câmera', camera, visiveis);
+      return Response.json(r);
+    }
     if (acao === 'temporal') {
       const r = await estratificacaoTemporal(sdk);
       return Response.json(r);
