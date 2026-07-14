@@ -147,7 +147,7 @@ export default function StoryPage() {
 
       <div className="fixed bottom-0 inset-x-0 z-20 bg-gradient-to-t from-[#08080f] via-[#08080f]/95 to-transparent pt-10 pb-5 px-5">
         <div className="max-w-3xl mx-auto">
-          <Composer onSend={send} sending={sending} allowByok={!isNew} placeholder={isNew ? "Dite o início da história..." : "Continue a narrativa, mude o POV ou introduza algo novo..."} />
+          <Composer onSend={send} sending={sending} allowByok={!isNew} storyId={isNew ? null : id} placeholder={isNew ? "Dite o início da história..." : "Continue a narrativa, mude o POV ou introduza algo novo..."} />
         </div>
       </div>
 

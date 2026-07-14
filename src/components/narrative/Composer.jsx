@@ -3,8 +3,9 @@ import { SendHorizonal, Loader2, KeyRound } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { base44 } from "@/api/base44Client";
 import SlashCommandMenu from "./SlashCommandMenu";
+import OracleSuggestions from "./OracleSuggestions";
 
-export default function Composer({ onSend, sending, placeholder, allowByok }) {
+export default function Composer({ onSend, sending, placeholder, allowByok, storyId }) {
   const [texto, setTexto] = useState("");
   const [byok, setByok] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
@@ -42,6 +43,7 @@ export default function Composer({ onSend, sending, placeholder, allowByok }) {
 
   return (
     <div className="relative">
+      {storyId && <OracleSuggestions storyId={storyId} onPick={setTexto} />}
       {menuAberto && <SlashCommandMenu comandos={filtrados} activeIndex={activeIndex} onPick={autocompletar} />}
       <div className="flex items-end gap-3 bg-zinc-900/80 backdrop-blur border border-zinc-800 rounded-2xl p-3 shadow-2xl shadow-black/40">
         {allowByok && (
