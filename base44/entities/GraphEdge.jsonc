@@ -1,0 +1,28 @@
+{
+  "name": "GraphEdge",
+  "type": "object",
+  "properties": {
+    "universe_id": {
+      "type": "string",
+      "description": "Universo dono do grafo"
+    },
+    "origem": {
+      "type": "string",
+      "description": "node_id de origem"
+    },
+    "destino": {
+      "type": "string",
+      "description": "node_id de destino"
+    },
+    "tipo_de_relacao": {
+      "type": "string",
+      "description": "estava_presente_em | alterou_o_curso_de | possui_trauma_com | ocorreu_durante"
+    }
+  },
+  "required": [
+    "universe_id",
+    "origem",
+    "destino",
+    "tipo_de_relacao"
+  ]
+}

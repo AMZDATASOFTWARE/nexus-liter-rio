@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { base44 } from "@/api/base44Client";
-import { ArrowLeft, Loader2, Users } from "lucide-react";
+import { ArrowLeft, Loader2, Users, Network } from "lucide-react";
 import BlockItem from "@/components/narrative/BlockItem";
 import Composer from "@/components/narrative/Composer";
 import CharacterPanel from "@/components/narrative/CharacterPanel";
@@ -70,6 +70,11 @@ export default function StoryPage() {
               )}
             </div>
           </div>
+          {!isNew && story?.universe_id && (
+            <Link to={`/grafo/${story.universe_id}`} className="shrink-0 p-2 rounded-lg border border-zinc-800 text-zinc-500 hover:text-emerald-300 hover:border-emerald-500/40 transition-colors" title="Megagrafo do universo">
+              <Network className="w-4 h-4" />
+            </Link>
+          )}
           {!isNew && (
             <button onClick={() => setShowChars(!showChars)} className={`shrink-0 p-2 rounded-lg border transition-colors ${showChars ? "border-violet-500/40 text-violet-300" : "border-zinc-800 text-zinc-500 hover:text-zinc-300"}`}>
               <Users className="w-4 h-4" />

@@ -10,6 +10,7 @@ import ScrollToTop from './components/ScrollToTop';
 import Home from './pages/Home';
 import StoryPage from './pages/StoryPage';
 import KnowledgePage from './pages/KnowledgePage';
+import GraphPage from './pages/GraphPage';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
@@ -41,6 +42,7 @@ const AuthenticatedApp = () => {
       <Route path="/" element={<Home />} />
       <Route path="/historia/:id" element={<StoryPage />} />
       <Route path="/conhecimento" element={<KnowledgePage />} />
+      <Route path="/grafo/:universeId" element={<GraphPage />} />
       <Route path="*" element={<PageNotFound />} />
     </Routes>
   );

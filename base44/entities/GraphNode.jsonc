@@ -1,0 +1,44 @@
+{
+  "name": "GraphNode",
+  "type": "object",
+  "properties": {
+    "universe_id": {
+      "type": "string",
+      "description": "Universo dono do grafo"
+    },
+    "node_id": {
+      "type": "string",
+      "description": "ID \u00fanico sem\u00e2ntico do n\u00f3 (ex: personagem_elias_thorne)"
+    },
+    "tipo": {
+      "type": "string",
+      "enum": [
+        "Personagem",
+        "Cenario",
+        "Clima",
+        "LinhaTemporal",
+        "Memoria",
+        "Objeto"
+      ],
+      "description": "Categoria do n\u00f3"
+    },
+    "rotulo": {
+      "type": "string",
+      "description": "Nome exibido na interface"
+    },
+    "descricao_breve": {
+      "type": "string",
+      "description": "Resumo gerado com base no contexto"
+    },
+    "pertence_ao_agente_base44": {
+      "type": "string",
+      "description": "ID do Superagente custodiante (se aplic\u00e1vel)"
+    }
+  },
+  "required": [
+    "universe_id",
+    "node_id",
+    "tipo",
+    "rotulo"
+  ]
+}

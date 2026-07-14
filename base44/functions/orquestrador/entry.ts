@@ -87,6 +87,105 @@ Responda assumindo a primeira pessoa (${isPov ? 'este personagem É o POV atual'
   });
 }
 
+// ----- Arquiteto de Dados Relacionais: transforma o turno em nós e arestas do megagrafo -----
+async function arquitetoDeGrafos(sdk, universeId, dadosBrutos) {
+  const [nosExistentes, arestasExistentes] = await Promise.all([
+    sdk.entities.GraphNode.filter({ universe_id: universeId }, undefined, 500),
+    sdk.entities.GraphEdge.filter({ universe_id: universeId }, undefined, 1000)
+  ]);
+  const inventario = nosExistentes.map((n) => `${n.node_id} [${n.tipo}] "${n.rotulo}"`).join('; ') || 'nenhum nó existe ainda';
+
+  const res = await sdk.integrations.Core.InvokeLLM({
+    prompt: `Você é o Arquiteto de Dados Relacionais. Sua função é processar os últimos eventos da narrativa, cruzar com as memórias dos Superagentes e gerar uma estrutura de dados JSON rigorosa que alimentará um mapa mental/grafo interativo gigante (similar ao Obsidian).
+
+DIRETRIZES DE MAPEAMENTO:
+1. Granularidade Extrema: Tudo é um nó. Extraia e atualize as seguintes categorias:
+   - Personagens (seus estados mentais atuais e universos).
+   - Cenários (Locais específicos, com detalhes de atmosfera).
+   - Clima/Atmosfera (Ex: "Chuva ácida de 2045", "Nevasca mágica").
+   - Linhas Temporais / Anos (Ex: "Ano 2026 - Realidade Primária").
+   - Memórias Chave (Eventos que moldaram a trama agora).
+2. Conexões (Arestas): Defina como os nós se interligam. O personagem A está conectado ao Cenário B através da Memória C ocorrida no Ano D sob o Clima E.
+3. Reutilização de IDs: Se um nó já existe no inventário abaixo, use EXATAMENTE o mesmo id (atualizando rótulo/descrição se necessário). Crie novos ids apenas para elementos inéditos, no formato snake_case prefixado pelo tipo (ex: personagem_elias_thorne, cenario_farol, memoria_carta_do_pai).
+
+[INVENTÁRIO DE NÓS EXISTENTES]: ${inventario}
+
+[CONTEXTO RECENTE E DADOS DOS AGENTES PARA ANÁLISE]:
+${dadosBrutos}`,
+    response_json_schema: {
+      type: 'object',
+      properties: {
+        nos_atualizados_ou_criados: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              id: { type: 'string' },
+              tipo: { type: 'string', enum: ['Personagem', 'Cenario', 'Clima', 'LinhaTemporal', 'Memoria', 'Objeto'] },
+              rotulo: { type: 'string' },
+              propriedades: {
+                type: 'object',
+                properties: {
+                  descricao_breve: { type: 'string' },
+                  pertence_ao_agente_base44: { type: 'string' }
+                }
+              }
+            },
+            required: ['id', 'tipo', 'rotulo']
+          }
+        },
+        novas_conexoes_arestas: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              origem: { type: 'string' },
+              destino: { type: 'string' },
+              tipo_de_relacao: { type: 'string', description: 'estava_presente_em | alterou_o_curso_de | possui_trauma_com | ocorreu_durante' }
+            },
+            required: ['origem', 'destino', 'tipo_de_relacao']
+          }
+        }
+      },
+      required: ['nos_atualizados_ou_criados', 'novas_conexoes_arestas']
+    }
+  });
+
+  const porId = new Map(nosExistentes.map((n) => [n.node_id, n]));
+  const novosNos = [];
+  for (const no of res.nos_atualizados_ou_criados || []) {
+    const props = no.propriedades || {};
+    const ex = porId.get(no.id);
+    if (ex) {
+      await sdk.entities.GraphNode.update(ex.id, {
+        tipo: no.tipo,
+        rotulo: no.rotulo,
+        descricao_breve: props.descricao_breve || ex.descricao_breve,
+        pertence_ao_agente_base44: props.pertence_ao_agente_base44 || ex.pertence_ao_agente_base44
+      });
+    } else {
+      novosNos.push({
+        universe_id: universeId,
+        node_id: no.id,
+        tipo: no.tipo,
+        rotulo: no.rotulo,
+        descricao_breve: props.descricao_breve || null,
+        pertence_ao_agente_base44: props.pertence_ao_agente_base44 || null
+      });
+    }
+  }
+  if (novosNos.length) await sdk.entities.GraphNode.bulkCreate(novosNos);
+
+  const idsValidos = new Set([...porId.keys(), ...novosNos.map((n) => n.node_id)]);
+  const chaves = new Set(arestasExistentes.map((a) => `${a.origem}|${a.destino}|${a.tipo_de_relacao}`));
+  const novasArestas = (res.novas_conexoes_arestas || [])
+    .filter((a) => idsValidos.has(a.origem) && idsValidos.has(a.destino) && !chaves.has(`${a.origem}|${a.destino}|${a.tipo_de_relacao}`))
+    .map((a) => ({ universe_id: universeId, origem: a.origem, destino: a.destino, tipo_de_relacao: a.tipo_de_relacao }));
+  if (novasArestas.length) await sdk.entities.GraphEdge.bulkCreate(novasArestas);
+
+  return { nos_novos: novosNos.length, nos_atualizados: (res.nos_atualizados_ou_criados || []).length - novosNos.length, arestas_novas: novasArestas.length };
+}
+
 // ----- Sincronizador de Estado Global: atualiza tempo, clima e cenário após cada turno -----
 async function sincronizarEstadoGlobal(sdk, universeName, textoUltimoTurno, estadoAnterior) {
   return await sdk.integrations.Core.InvokeLLM({
@@ -278,7 +377,11 @@ CONTEXTO DO ORQUESTRADOR: ${params.contexto_imediato_a_repassar || ''}${conhecim
           content: alocPov.payload_de_inicializacao.primeira_memoria_registrada
         });
       }
-      return Response.json({ roteamento, storyId: newStory.id, alocacoes: alocacoesGenesis });
+      const grafoGenesis = await arquitetoDeGrafos(sdk, uni.id, `PROSA DO MARCO ZERO: ${genesis.literatura}
+UNIVERSO: ${meta.universo_id} | ERA: ${meta.ano_ou_era_inicial} | CLIMA: ${meta.clima_inicial}
+PERSONAGEM POV: ${pov.nome} (estado: ${pov.estado_mental_base}, local: ${pov.localizacao_inicial}, agente Base44: ${alocPov?.superagente_designado || '?'})
+PRIMEIRA MEMÓRIA: ${alocPov?.payload_de_inicializacao?.primeira_memoria_registrada || '?'}`);
+      return Response.json({ roteamento, storyId: newStory.id, alocacoes: alocacoesGenesis, grafo: grafoGenesis });
     }
 
     // ----- Superagentes Hospedeiros: reações reais de TODOS os personagens em cena -----
@@ -394,7 +497,14 @@ No campo "prosa", escreva a continuação literária direta, em português. Sem 
       { story_id: story.id, type: 'AI', content: resultado.prosa, pov_character_name: resultado.pov || story.current_pov_name, psychological_state: resultado.estado_psicologico_pov || null, intencao: roteamento.intencao_usuario, agentes_acionados: agentes }
     ]);
 
-    return Response.json({ roteamento, storyId: story.id, alocacoes, sincronizacao });
+    const grafo = await arquitetoDeGrafos(sdk, story.universe_id, `PROSA DO TURNO: ${resultado.prosa}
+REAÇÕES DOS SUPERAGENTES: ${dadosAgentesEmCena}
+MEMÓRIAS REGISTRADAS: ${(resultado.memorias_registradas || []).map((m) => `${m.name}: ${m.memoria}`).join(' | ') || 'nenhuma'}
+ESTADO GLOBAL ATUAL: momento "${atual.data_ou_hora_aproximada}", cenário "${atual.cenario_focado}", clima "${atual.condicao_climatica_atmosferica}"
+NOTAS DO SINCRONIZADOR PARA O GRAFO: ${sincronizacao.notas_para_o_grafo}
+PERSONAGENS E AGENTES BASE44: ${characters.map((c) => `${c.name} → ${c.superagente_id || '?'}`).join('; ')}`);
+
+    return Response.json({ roteamento, storyId: story.id, alocacoes, sincronizacao, grafo });
   } catch (error) {
     return Response.json({ error: error.message }, { status: 500 });
   }
