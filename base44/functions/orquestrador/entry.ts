@@ -1,5 +1,60 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.38';
 
+// ----- Alocador de Personagens: designa um Superagente Hospedeiro para cada novo personagem -----
+async function alocarPersonagens(sdk, novosPersonagens) {
+  if (!novosPersonagens.length) return [];
+  const todos = await sdk.entities.Character.list(undefined, 1000);
+  const carga = {};
+  for (const c of todos) {
+    if (c.superagente_id) carga[c.superagente_id] = (carga[c.superagente_id] || 0) + 1;
+  }
+  const mapaCarga = Object.keys(carga).length
+    ? Object.entries(carga).map(([a, n]) => `${a}: ${n}/100 personagens`).join(' | ') + ' | Todos os demais agentes (Agente_001 a Agente_100) estão vazios (0/100).'
+    : 'Todos os 100 Superagentes (Agente_001 a Agente_100) estão vazios (0/100).';
+  const alocados = todos.filter((c) => c.superagente_id).map((c) => `${c.name} → ${c.superagente_id}`).join('; ') || 'nenhum personagem alocado ainda';
+
+  const res = await sdk.integrations.Core.InvokeLLM({
+    prompt: `Você é o Alocador de Personagens. Sua função no backend é o gerenciamento de capacidade da rede Base 44. Um novo personagem acaba de surgir ou ser citado na narrativa global, e ele precisa de um "Superagente Hospedeiro" para armazenar suas memórias futuras e simular sua psique.
+
+LÓGICA DE ALOCAÇÃO:
+1. Analise o status atual dos 100 Superagentes disponíveis.
+2. Encontre um Superagente que tenha menos de 100 personagens sob sua custódia.
+3. Se houver relação de facção ou família (ex: o novo personagem é irmão de alguém já existente), tente alocá-lo no mesmo Superagente para otimização de cluster, DESDE QUE o agente tenha espaço. Caso contrário, aloque no agente mais vazio.
+4. Gere o comando de registro para inicializar a persona.
+
+${novosPersonagens.map((p) => `[NOVO PERSONAGEM DETECTADO]: ${p.nome}\n[CONTEXTO DE SUA APARIÇÃO]: ${p.contexto}`).join('\n\n')}
+[MAPA DE CARGA DOS SUPERAGENTES]: ${mapaCarga}
+[PERSONAGENS JÁ ALOCADOS]: ${alocados}`,
+    response_json_schema: {
+      type: 'object',
+      properties: {
+        alocacoes: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              novo_personagem: { type: 'string' },
+              superagente_designado: { type: 'string', description: 'Ex: Agente_042' },
+              motivo_da_alocacao: { type: 'string', description: 'Carga mais baixa | Agrupamento familiar' },
+              payload_de_inicializacao: {
+                type: 'object',
+                properties: {
+                  tracos_iniciais: { type: 'array', items: { type: 'string' } },
+                  primeira_memoria_registrada: { type: 'string' }
+                },
+                required: ['tracos_iniciais', 'primeira_memoria_registrada']
+              }
+            },
+            required: ['novo_personagem', 'superagente_designado', 'motivo_da_alocacao', 'payload_de_inicializacao']
+          }
+        }
+      },
+      required: ['alocacoes']
+    }
+  });
+  return res.alocacoes || [];
+}
+
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
@@ -111,11 +166,19 @@ CONTEXTO DO ORQUESTRADOR: ${params.contexto_imediato_a_repassar || ''}${conhecim
         name: meta.universo_id,
         rules: (meta.leis_fundamentais || []).join(' | ')
       });
+      const alocacoesGenesis = await alocarPersonagens(sdk, [
+        { nome: pov.nome, contexto: genesis.literatura.slice(0, 800) }
+      ]);
+      const alocPov = alocacoesGenesis[0];
       const povChar = await sdk.entities.Character.create({
         universe_id: uni.id,
         name: pov.nome,
         description: `Localização inicial: ${pov.localizacao_inicial}`,
-        psychological_state: pov.estado_mental_base
+        psychological_state: pov.estado_mental_base,
+        superagente_id: alocPov?.superagente_designado || null,
+        motivo_alocacao: alocPov?.motivo_da_alocacao || null,
+        tracos_iniciais: alocPov?.payload_de_inicializacao?.tracos_iniciais || [],
+        primeira_memoria: alocPov?.payload_de_inicializacao?.primeira_memoria_registrada || null
       });
       const newStory = await sdk.entities.Story.create({
         universe_id: uni.id,
@@ -131,7 +194,7 @@ CONTEXTO DO ORQUESTRADOR: ${params.contexto_imediato_a_repassar || ''}${conhecim
         { story_id: newStory.id, type: 'USER', content: texto },
         { story_id: newStory.id, type: 'AI', content: genesis.literatura, pov_character_name: pov.nome, psychological_state: pov.estado_mental_base, intencao: roteamento.intencao_usuario, agentes_acionados: agentes }
       ]);
-      return Response.json({ roteamento, storyId: newStory.id });
+      return Response.json({ roteamento, storyId: newStory.id, alocacoes: alocacoesGenesis });
     }
 
     // ----- Diretor Narrativo / Gestor de Transição / Arquiteto de Dados -----
@@ -164,8 +227,20 @@ Escreva o próximo bloco narrativo em português e atualize os dados.`,
     // Persistência
     const existentes = new Set(characters.map((c) => c.name));
     const novos = (resultado.novos_personagens || []).filter((p) => !existentes.has(p.name));
+    let alocacoes = [];
     if (novos.length) {
-      const criados = await sdk.entities.Character.bulkCreate(novos.map((p) => ({ ...p, universe_id: story.universe_id })));
+      alocacoes = await alocarPersonagens(sdk, novos.map((p) => ({ nome: p.name, contexto: resultado.prosa.slice(0, 800) })));
+      const criados = await sdk.entities.Character.bulkCreate(novos.map((p) => {
+        const a = alocacoes.find((x) => x.novo_personagem === p.name);
+        return {
+          ...p,
+          universe_id: story.universe_id,
+          superagente_id: a?.superagente_designado || null,
+          motivo_alocacao: a?.motivo_da_alocacao || null,
+          tracos_iniciais: a?.payload_de_inicializacao?.tracos_iniciais || [],
+          primeira_memoria: a?.payload_de_inicializacao?.primeira_memoria_registrada || null
+        };
+      }));
       characters = characters.concat(criados);
     }
     for (const upd of resultado.atualizacoes_estado || []) {
@@ -184,7 +259,7 @@ Escreva o próximo bloco narrativo em português e atualize os dados.`,
       { story_id: story.id, type: 'AI', content: resultado.prosa, pov_character_name: resultado.pov || story.current_pov_name, psychological_state: resultado.estado_psicologico_pov || null, intencao: roteamento.intencao_usuario, agentes_acionados: agentes }
     ]);
 
-    return Response.json({ roteamento, storyId: story.id });
+    return Response.json({ roteamento, storyId: story.id, alocacoes });
   } catch (error) {
     return Response.json({ error: error.message }, { status: 500 });
   }

@@ -17,6 +17,25 @@
     "psychological_state": {
       "type": "string",
       "description": "Estado psicol\u00f3gico atual"
+    },
+    "superagente_id": {
+      "type": "string",
+      "description": "Superagente Hospedeiro designado (Ex: Agente_042)"
+    },
+    "motivo_alocacao": {
+      "type": "string",
+      "description": "Carga mais baixa | Agrupamento familiar"
+    },
+    "tracos_iniciais": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Tra\u00e7os iniciais da persona"
+    },
+    "primeira_memoria": {
+      "type": "string",
+      "description": "Primeira mem\u00f3ria registrada \u2014 contexto de introdu\u00e7\u00e3o na cena"
     }
   },
   "required": [
