@@ -9,7 +9,7 @@ export default function ZoomBar({ onZoom }) {
     onZoom?.(v);
   };
   return (
-    <div className="absolute bottom-4 left-4 z-10 flex items-center gap-1.5 bg-zinc-900/80 backdrop-blur border border-zinc-700 rounded-full px-2.5 py-1.5 opacity-80 hover:opacity-100 transition-opacity">
+    <div className="absolute bottom-4 right-4 z-10 flex items-center gap-1.5 bg-zinc-900/80 backdrop-blur border border-zinc-700 rounded-full px-2.5 py-1.5 opacity-80 hover:opacity-100 transition-opacity">
       <ZoomOut className="w-3 h-3 text-zinc-500" />
       <input
         type="range"
