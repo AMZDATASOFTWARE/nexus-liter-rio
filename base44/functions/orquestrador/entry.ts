@@ -402,21 +402,64 @@ PRIMEIRA MEMÓRIA: ${alocPov?.payload_de_inicializacao?.primeira_memoria_registr
     );
     const dadosAgentesEmCena = reacoes.map((r) => `[${r.nome}${r.isPov ? ' — POV' : ''}]: ${r.resposta}`).join('\n') || '(nenhum superagente em cena)';
 
+    // ----- Gestor de Transição de Consciência: aterrissagem no novo POV -----
+    let paragrafoTransicao = null;
+    const novoPovNome = params.mudanca_de_pov_solicitada || '';
+    const novoPovChar = characters.find((c) => c.name === novoPovNome || (novoPovNome.length > 3 && novoPovNome.includes(c.name)));
+    const houveSaltoPov = roteamento.intencao_usuario === 'Mudar_POV' && novoPovChar && novoPovChar.name !== story.current_pov_name;
+    if (houveSaltoPov) {
+      const memNovoPov = await invocarSuperagente(
+        sdk,
+        novoPovChar,
+        'Relatar suas memórias mais vivas, sensações físicas imediatas e estado emocional atual, para ancorar uma transição de consciência',
+        contextoCena,
+        true
+      );
+      const transicao = await sdk.integrations.Core.InvokeLLM({
+        prompt: `Você é o Gestor de Transição de Consciência. O usuário acaba de realizar um salto de Ponto de Vista (POV) na narrativa multiversal.
+
+AÇÃO EXIGIDA:
+Você deve processar as memórias do NOVO personagem em foco (fornecidas pelo Superagente dele) e escrever um parágrafo introspectivo e de transição. Este parágrafo deve "aterrissar" o leitor na mente, no corpo e no local onde este novo personagem está exatamente AGORA.
+
+REGRAS DE ATERRISSAGEM:
+1. Ancora Sensorial: Comece com um sentido físico (o que ele está cheirando, ouvindo, tocando ou sentindo no corpo) para firmar a nova realidade.
+2. Bagagem Emocional: Traga à tona o pensamento imediato dele com base no seu histórico e memórias, validando sua personalidade.
+3. Localização Espaço-Temporal: Deixe claro em qual ano, em qual cenário e sob qual clima ele se encontra no momento da troca, sem listar isso roboticamente, mas sim de forma orgânica na literatura.
+
+VARIÁVEIS DE TRANSIÇÃO:
+[PERSONAGEM ANTERIOR]: ${story.current_pov_name || 'narrador onisciente'}
+[NOVO PERSONAGEM EM FOCO (POV)]: ${novoPovChar.name}
+[DADOS DO SUPERAGENTE DO NOVO POV (MEMÓRIAS E STATUS)]: ${memNovoPov.resposta} | Estado psicológico: ${novoPovChar.psychological_state || '?'} | Perfil: ${novoPovChar.description || '?'}
+[ANO/LINHA TEMPORAL DO NOVO POV]: ${story.data_hora_atual || story.era_inicial || '?'} — Universo "${universe.name}"
+[CENÁRIO/CLIMA DO NOVO POV]: ${story.cenario_atual || '?'} / ${story.clima_atual || story.clima_inicial || '?'}
+
+Escreva apenas o parágrafo literário de transição (aterrissagem de consciência), em português.`,
+        response_json_schema: {
+          type: 'object',
+          properties: { paragrafo: { type: 'string' } },
+          required: ['paragrafo']
+        }
+      });
+      paragrafoTransicao = transicao.paragrafo;
+    }
+    const povNarrativa = houveSaltoPov ? novoPovChar.name : story.current_pov_name;
+
     // ----- Orquestrador Narrativo Principal -----
     const resultado = await sdk.integrations.Core.InvokeLLM({
       prompt: `Você é o Orquestrador Narrativo Principal. Sua função é receber o texto do usuário, identificar quais personagens estão em cena, consultar os "Superagentes Hospedeiros" do Base 44 para obter as reações reais e psicológicas desses personagens, e então tecer tudo isso em uma prosa literária imersiva e de alta qualidade.
 
 MECÂNICA DE FUNCIONAMENTO:
-1. Ponto de Vista (POV): A história deve ser narrada sempre sob a perspectiva de ${story.current_pov_name || 'narrador onisciente'}. Suas descrições sensoriais devem refletir a mente desse personagem (retornada pelo Superagente correspondente).
+1. Ponto de Vista (POV): A história deve ser narrada sempre sob a perspectiva de ${povNarrativa || 'narrador onisciente'}. Suas descrições sensoriais devem refletir a mente desse personagem (retornada pelo Superagente correspondente).
 2. Coordenação de Atores: Se o usuário interagir com outros personagens, você deve utilizar as respostas fornecidas pelos Superagentes deles para ditar como eles agem, falam e reagem na cena. Nunca invente uma reação para um personagem que contradiga a memória fornecida pelo Superagente dele.
 3. Expansão Imersiva: O usuário digitará a direção da história. Você deve expandir isso, adicionando descrições climáticas ricas, tensões físicas e atmosfera. Avance a trama, mas deixe sempre o controle de decisão (o gancho) para a próxima interação do usuário.
 
 SUBSISTEMAS AUXILIARES ACIONADOS (${agentes.join(', ')}):
-- "Gestor de Transição de Consciência": se houver mudança de POV solicitada (${params.mudanca_de_pov_solicitada || 'nenhuma'}), escreva a transição a partir da consciência do novo personagem, refletindo seu estado psicológico.
 - "Arquiteto de Dados Relacionais": se surgirem personagens novos (${(params.personagens_detectados || []).join(', ') || 'nenhum'}), defina descrição e estado psicológico para cadastro.
 
 VARIÁVEIS INJETADAS PELO SISTEMA BASE 44:
-[PERSONAGEM POV]: ${story.current_pov_name || 'narrador onisciente'}
+[PERSONAGEM POV]: ${povNarrativa || 'narrador onisciente'}
+${paragrafoTransicao ? `[PARÁGRAFO DE ATERRISSAGEM DO GESTOR DE TRANSIÇÃO DE CONSCIÊNCIA — a prosa DEVE começar exatamente com este parágrafo e continuar a partir dele]:
+${paragrafoTransicao}` : ''}
 [RESPOSTAS DOS SUPERAGENTES (REACÕES/MEMÓRIAS)]:
 ${dadosAgentesEmCena}
 [CLIMA/ANO/LINHA TEMPORAL]: Universo "${universe.name}" | ${story.data_hora_atual || story.era_inicial || '?'} | Cenário: ${story.cenario_atual || '?'} | Clima: ${story.clima_atual || story.clima_inicial || '?'} | Linha do tempo: ${story.timeline_summary || 'início'}
