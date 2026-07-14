@@ -24,7 +24,7 @@ export default function ForceGraph({ nodes, edges, selectedId, onSelect, width =
       })}
       {nodes.map((n, i) => {
         const p = positions[i];
-        const cor = TIPO_CORES[n.tipo] || "#a1a1aa";
+        const cor = n.cor_grafo || TIPO_CORES[n.tipo] || "#a1a1aa";
         const sel = n.node_id === selectedId;
         return (
           <g key={n.node_id} onClick={() => onSelect?.(n)} className="cursor-pointer">

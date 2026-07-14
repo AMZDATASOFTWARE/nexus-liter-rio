@@ -264,6 +264,73 @@ ${dadosBrutos}`,
   return { nos_novos: novosNos.length, nos_atualizados: (res.nos_atualizados_ou_criados || []).length - novosNos.length, arestas_novas: novasArestas.length };
 }
 
+// ----- Motor de Contaminação Multiversal: exposição de elementos estranhos aos nativos -----
+async function motorContaminacao(sdk, texto, universe, story, viajantes) {
+  const res = await sdk.integrations.Core.InvokeLLM({
+    prompt: `Você é o Motor de Contaminação Multiversal. O ${viajantes.map((v) => v.name).join(' e ')} do [Gênesis A] acaba de usar um artefato, feitiço, tecnologia ou conhecimento avançado abertamente no [Gênesis B], na frente de NPCs ou do ambiente nativo.
+
+SUA TAREFA:
+Calcular o "Índice de Contaminação" e ditar como a estrutura fundamental do [Gênesis B] começará a se alterar a longo prazo por causa dessa exposição.
+
+REGRAS DE PROPAGAÇÃO:
+1. Reação Imediata dos Nativos: Os NPCs vão adorar isso como magia divina? Vão temer como bruxaria? Ou vão tentar roubar e fazer engenharia reversa?
+2. Efeito Cascata (Timeline): Como esse vazamento de informação muda o futuro do Gênesis B? (Ex: Introduzir a pólvora 1000 anos antes do previsto).
+3. Resposta do Mundo: A realidade natural rejeita o objeto? (Ex: Eletrônicos perdem a bateria rapidamente em mundos de alta mana).
+
+[AÇÃO DO VIAJANTE]: "${texto}"
+[LEIS DO GÊNESIS VISITADO (B)]: ${universe.rules || 'não definidas'}
+[NATIVOS PRESENTES NA CENA]: ${(story.characters_in_scene || []).filter((n) => !viajantes.some((v) => v.name === n)).join(', ') || 'nenhum (apenas o ambiente presenciou)'}`,
+    response_json_schema: {
+      type: 'object',
+      properties: {
+        alerta_de_contaminacao: { type: 'string', enum: ['Critico', 'Moderado', 'Baixo'] },
+        elemento_estranho_introduzido: { type: 'string', description: 'O que foi mostrado ou usado' },
+        reacao_social_dos_nativos: { type: 'string', description: 'Descrição da mudança cultural ou religiosa imediata' },
+        dano_a_linha_temporal_nativa: { type: 'string', description: 'O que isso altera no destino do Gênesis B' },
+        atualizacao_para_o_grafo_obsidian: { type: 'string', description: "Criar nó de 'Anomalia Tecnológica/Mágica' no Gênesis B ligado ao NPC que presenciou" }
+      },
+      required: ['alerta_de_contaminacao', 'elemento_estranho_introduzido', 'reacao_social_dos_nativos', 'dano_a_linha_temporal_nativa', 'atualizacao_para_o_grafo_obsidian']
+    }
+  });
+
+  // Efeito cascata: contamina as leis fundamentais do Gênesis visitado
+  const regras = `${universe.rules || ''} | CONTAMINAÇÃO MULTIVERSAL [${res.alerta_de_contaminacao}]: "${res.elemento_estranho_introduzido}" exposto aos nativos — ${res.dano_a_linha_temporal_nativa}`;
+  await sdk.entities.Universe.update(universe.id, { rules: regras });
+  universe.rules = regras;
+
+  // Nó de Anomalia Tecnológica/Mágica no grafo do Gênesis B
+  const anomaliaId = `anomalia_${res.elemento_estranho_introduzido.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '').slice(0, 50)}`;
+  const existente = await sdk.entities.GraphNode.filter({ universe_id: story.universe_id, node_id: anomaliaId });
+  if (!existente.length) {
+    await sdk.entities.GraphNode.create({
+      universe_id: story.universe_id,
+      node_id: anomaliaId,
+      tipo: 'Anomalia',
+      rotulo: res.elemento_estranho_introduzido,
+      cor_grafo: '#d946ef',
+      descricao_breve: `[Anomalia Tecnológica/Mágica — alerta ${res.alerta_de_contaminacao}] ${res.reacao_social_dos_nativos} | Dano à linha temporal: ${res.dano_a_linha_temporal_nativa}`
+    });
+  }
+  // Liga a anomalia aos NPCs nativos que presenciaram
+  const nativos = (story.characters_in_scene || []).filter((n) => !viajantes.some((v) => v.name === n));
+  for (const nome of nativos) {
+    const nodeId = `personagem_${nome.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '')}`;
+    const no = await sdk.entities.GraphNode.filter({ universe_id: story.universe_id, node_id: nodeId });
+    if (!no.length) continue;
+    const aresta = await sdk.entities.GraphEdge.filter({ universe_id: story.universe_id, origem: nodeId, destino: anomaliaId });
+    if (!aresta.length) {
+      await sdk.entities.GraphEdge.create({ universe_id: story.universe_id, origem: nodeId, destino: anomaliaId, tipo_de_relacao: 'presenciou_a_anomalia' });
+    }
+  }
+
+  await sdk.entities.NarrativeBlock.create({
+    story_id: story.id,
+    type: 'SYSTEM',
+    content: `☣ Contaminação Multiversal [${res.alerta_de_contaminacao}] — "${res.elemento_estranho_introduzido}" foi exposto aos nativos. ${res.dano_a_linha_temporal_nativa}`
+  });
+  return res;
+}
+
 // ----- Assimilador de Conhecimento Multiversal: aprendizado de viajantes em Gênesis alheio -----
 async function assimiladorConhecimento(sdk, character, textoUltimoTurno) {
   const conhecimentosAtuais = (character.conhecimentos_assimilados || []).map((k) => `- ${k}`).join('\n') || 'nenhum (recém-chegado a esta realidade)';
@@ -405,6 +472,7 @@ DIRETRIZES DE ROTEAMENTO (Avalie a intenção do usuário e retorne APENAS um JS
 4. Se o usuário iniciar uma história do zero absoluto: Acione o "Criador de Gênesis".
 5. Se a ação do usuário fraturar a linha temporal (viagem no tempo, decisão que gera universo paralelo, alteração/reset da realidade): a intenção é "Ramificar" — acione o "Guardião dos Paradoxos". ATENÇÃO: use "Ramificar" APENAS quando o INPUT ATUAL do usuário causar uma NOVA fratura. Continuar narrando dentro de uma linha temporal que já foi bifurcada anteriormente é "Continuar", nunca "Ramificar".
 6. Se a ação do usuário conectar a história atual a OUTRO Gênesis existente no multiverso (crossover: portal para outro universo listado, personagem/elemento de outro Gênesis invadindo a cena): a intenção é "Colidir_Genesis" — acione o "Colisor de Gênesis" e informe em "universo_visitante_detectado" o nome EXATO do universo visitante conforme listado no estado.
+7. INDEPENDENTE da intenção acima: se um personagem VIAJANTE (visitante de outro Gênesis, marcado como tal no estado) usar ou exibir abertamente um artefato, feitiço, tecnologia ou conhecimento do seu mundo natal diante de nativos ou do ambiente deste Gênesis, marque "contaminacao_multiversal_detectada" como true para acionar o "Motor de Contaminação Multiversal".
 
 [INPUT DO USUÁRIO]: ${texto}
 [ESTADO ATUAL DA INTERFACE]: ${estado}`,
@@ -419,6 +487,7 @@ DIRETRIZES DE ROTEAMENTO (Avalie a intenção do usuário e retorne APENAS um JS
               personagens_detectados: { type: 'array', items: { type: 'string' } },
               mudanca_de_pov_solicitada: { type: 'string' },
               universo_visitante_detectado: { type: 'string', description: 'Nome exato do Gênesis visitante em caso de Colidir_Genesis' },
+              contaminacao_multiversal_detectada: { type: 'boolean', description: 'true se um viajante expôs elemento estranho do seu mundo natal aos nativos deste Gênesis' },
               contexto_imediato_a_repassar: { type: 'string' }
             }
           }
@@ -752,6 +821,13 @@ DIRETRIZES DE COLISÃO:
       }
     }
 
+    // ----- Motor de Contaminação Multiversal: viajante expôs elemento estranho aos nativos -----
+    let contaminacao = null;
+    const viajantesPresentes = characters.filter((c) => (c.description || '').includes('[Visitante do Gênesis') && ((story.characters_in_scene || []).includes(c.name) || c.name === story.current_pov_name));
+    if (params.contaminacao_multiversal_detectada && viajantesPresentes.length) {
+      contaminacao = await motorContaminacao(sdk, texto, universe, story, viajantesPresentes);
+    }
+
     // ----- Superagentes Hospedeiros: reações reais de TODOS os personagens em cena -----
     const contextoCena = `${texto} | Cenário: ${story.cenario_atual || '?'} | Clima: ${story.clima_atual || '?'} | Momento: ${story.data_hora_atual || '?'}`;
     const emCena = characters.filter((c) => (story.characters_in_scene || []).includes(c.name) || c.name === story.current_pov_name);
@@ -861,6 +937,7 @@ Escreva apenas o parágrafo literário de transição (aterrissagem de consciên
         cena_de_colisao_do_diretor_de_crossover: cenaCrossover,
         quarentena_narrativa_viajantes: quarentenas.length ? quarentenas : null,
         assimilacao_dos_viajantes: viajantes.length ? viajantes.map((v) => ({ nome: v.name, nivel_de_adaptacao: v.nivel_adaptacao || '0%', conhecimentos_assimilados: v.conhecimentos_assimilados || [], diretriz_comportamental: v.diretriz_comportamental || null })) : null,
+        contaminacao_multiversal: contaminacao,
         personagens_em_cena: emCena.map((c) => ({ nome: c.name, estado_psicologico: c.psychological_state || '?', tracos: c.tracos_iniciais || [], perfil: c.description || '?' })),
         respostas_dos_superagentes: reacoes.map((r) => ({ personagem: r.nome, pov: r.isPov, reacao: r.resposta })),
         veredicto_do_arbitro: veredicto,
@@ -886,7 +963,7 @@ Escreva o System Prompt formatado em Markdown, começando com "Você é o autor 
         }
       });
       await sdk.entities.NarrativeBlock.create({ story_id: story.id, type: 'USER', content: texto });
-      return Response.json({ roteamento, storyId: story.id, paradoxo, colisao, quarentenas, veredicto, system_prompt_master: adaptacao.system_prompt_master });
+      return Response.json({ roteamento, storyId: story.id, paradoxo, colisao, quarentenas, contaminacao, veredicto, system_prompt_master: adaptacao.system_prompt_master });
     }
 
     // ----- Orquestrador Narrativo Principal -----
@@ -913,6 +990,7 @@ ${quarentenas.map((q) => `- ${q.nome}: ${q.reacao_interna}`).join('\n')}
 ${cenaCrossover}
 ` : ''}${viajantes.some((v) => v.diretriz_comportamental) ? `[ASSIMILADOR DE CONHECIMENTO MULTIVERSAL — diretrizes comportamentais dos viajantes; respeite o que cada um JÁ aprendeu deste Gênesis e NÃO os faça reagir com surpresa extrema a elementos já assimilados]:
 ${viajantes.filter((v) => v.diretriz_comportamental).map((v) => `- ${v.name} (adaptação ${v.nivel_adaptacao || '?'}): ${v.diretriz_comportamental}`).join('\n')}
+` : ''}${contaminacao ? `[MOTOR DE CONTAMINAÇÃO MULTIVERSAL — alerta ${contaminacao.alerta_de_contaminacao}]: o elemento estranho "${contaminacao.elemento_estranho_introduzido}" acaba de ser exposto aos nativos deste Gênesis. A prosa DEVE retratar a reação social imediata: ${contaminacao.reacao_social_dos_nativos}. Efeito cascata em curso na realidade: ${contaminacao.dano_a_linha_temporal_nativa}
 ` : ''}[VEREDICTO DO ÁRBITRO DE CONSEQUÊNCIAS — a prosa DEVE respeitar rigorosamente este desfecho; a ação do usuário NÃO acontece automaticamente como ele quis]:
 - Status da ação: ${veredicto.status_da_acao}
 - O que realmente acontece: ${veredicto.descricao_do_desfecho}
@@ -1016,7 +1094,7 @@ ESTADO GLOBAL ATUAL: momento "${atual.data_ou_hora_aproximada}", cenário "${atu
 NOTAS DO SINCRONIZADOR PARA O GRAFO: ${sincronizacao.notas_para_o_grafo}
 PERSONAGENS E AGENTES BASE44: ${characters.map((c) => `${c.name} → ${c.superagente_id || '?'}`).join('; ')}`);
 
-    return Response.json({ roteamento, storyId: story.id, alocacoes, paradoxo, colisao, quarentenas, assimilacoes, veredicto, sincronizacao, grafo, compactacoes });
+    return Response.json({ roteamento, storyId: story.id, alocacoes, paradoxo, colisao, quarentenas, contaminacao, assimilacoes, veredicto, sincronizacao, grafo, compactacoes });
   } catch (error) {
     return Response.json({ error: error.message }, { status: 500 });
   }

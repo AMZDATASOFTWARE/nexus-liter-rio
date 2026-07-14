@@ -6,6 +6,7 @@ export const TIPO_CORES = {
   Memoria: "#f472b6",
   Objeto: "#facc15",
   Nexus: "#f43f5e",
+  Anomalia: "#d946ef",
 };
 
 // Layout força-dirigido simples (estático): repulsão + molas nas arestas

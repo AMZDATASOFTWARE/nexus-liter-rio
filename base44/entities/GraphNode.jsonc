@@ -19,7 +19,8 @@
         "LinhaTemporal",
         "Memoria",
         "Objeto",
-        "Nexus"
+        "Nexus",
+        "Anomalia"
       ],
       "description": "Categoria do n\u00f3"
     },
@@ -30,6 +31,10 @@
     "descricao_breve": {
       "type": "string",
       "description": "Resumo gerado com base no contexto"
+    },
+    "cor_grafo": {
+      "type": "string",
+      "description": "Cor HEX de destaque no grafo (ex: neon para Anomalias)"
     },
     "pertence_ao_agente_base44": {
       "type": "string",
