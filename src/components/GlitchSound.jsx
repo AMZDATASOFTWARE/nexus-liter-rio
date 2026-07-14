@@ -40,34 +40,36 @@ export default function GlitchSound() {
       const loaded = buffersRef.current.filter(Boolean);
       if (!ctx || ctx.state !== "running" || mutedRef.current || loaded.length === 0) return;
       const intensity = Math.min(1, Math.max(0, e.detail?.intensity ?? 0.5));
-      const now = ctx.currentTime;
+      // Sincroniza com a janela visual: mesmo atraso de início e mesma duração do glitch na tela
+      const start = ctx.currentTime + (e.detail?.startDelay ?? 0.05);
+      const dur = e.detail?.glitchDur ?? 0.35;
 
       // Escolhe um sample e um trecho aleatório dele (glitch imprevisível, nunca repetido)
       const buffer = loaded[Math.floor(Math.random() * loaded.length)];
-      const dur = 0.25 + intensity * 0.35; // glitch forte = rajada mais longa
       const maxStart = Math.max(0, buffer.duration - dur - 0.1);
       const offset = Math.random() * maxStart;
 
       const src = ctx.createBufferSource();
       src.buffer = buffer;
-      src.playbackRate.value = 0.85 + Math.random() * 0.35;
+      // Altura acompanha a intensidade: glitch fraco = grave/lento, glitch forte = agudo/rápido
+      src.playbackRate.value = 0.7 + intensity * 0.9 + Math.random() * 0.15;
 
-      // Filtro: calmo = abafado/distante; glitch intenso = mais aberto/agressivo
+      // Filtro: calmo = abafado/distante; glitch intenso = um pouco mais aberto
       const filter = ctx.createBiquadFilter();
       filter.type = "lowpass";
-      filter.frequency.value = 700 + intensity * 3800;
+      filter.frequency.value = 500 + intensity * 2500;
       filter.Q.value = 0.7;
 
-      // Envelope: entrada seca, saída rápida — o ruído "corta" junto com o glitch visual
+      // Envelope leve: entrada seca, corte junto com o fim do glitch visual
       const gain = ctx.createGain();
-      const peak = 0.05 + intensity * 0.16;
-      gain.gain.setValueAtTime(0, now);
-      gain.gain.linearRampToValueAtTime(peak, now + 0.03);
-      gain.gain.setValueAtTime(peak, now + dur - 0.12);
-      gain.gain.linearRampToValueAtTime(0, now + dur);
+      const peak = 0.02 + intensity * 0.07;
+      gain.gain.setValueAtTime(0, start);
+      gain.gain.linearRampToValueAtTime(peak, start + 0.02);
+      gain.gain.setValueAtTime(peak, start + dur * 0.7);
+      gain.gain.linearRampToValueAtTime(0, start + dur);
 
       src.connect(filter).connect(gain).connect(ctx.destination);
-      src.start(now, offset, dur + 0.05);
+      src.start(start, offset, dur + 0.05);
     };
     window.addEventListener("glitch-burst", onBurst);
 
