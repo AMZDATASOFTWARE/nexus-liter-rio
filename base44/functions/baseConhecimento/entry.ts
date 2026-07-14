@@ -4,7 +4,35 @@ Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
     const sdk = base44.asServiceRole;
-    const { action, docId, repo, filePath } = await req.json();
+    const { action, docId, repo, filePath, sourceId } = await req.json();
+
+    if (action === 'refreshSource') {
+      const source = await sdk.entities.KnowledgeSource.get(sourceId);
+      let text = '';
+      if (source.source_type === 'googledocs') {
+        const { accessToken } = await sdk.connectors.getConnection('googledocs');
+        const res = await fetch(`https://docs.googleapis.com/v1/documents/${source.reference}`, {
+          headers: { Authorization: `Bearer ${accessToken}` }
+        });
+        const doc = await res.json();
+        if (!res.ok) return Response.json({ error: doc.error?.message || 'Erro ao ler documento' }, { status: 500 });
+        for (const el of doc.body?.content || []) {
+          for (const pe of el.paragraph?.elements || []) {
+            text += pe.textRun?.content || '';
+          }
+        }
+      } else {
+        const { accessToken } = await sdk.connectors.getConnection('hugging_face');
+        const partes = source.reference.split('/');
+        const res = await fetch(`https://huggingface.co/${partes.slice(0, 2).join('/')}/resolve/main/${partes.slice(2).join('/')}`, {
+          headers: { Authorization: `Bearer ${accessToken}` }
+        });
+        if (!res.ok) return Response.json({ error: `Não foi possível baixar ${source.reference} (HTTP ${res.status})` }, { status: 500 });
+        text = await res.text();
+      }
+      const atualizado = await sdk.entities.KnowledgeSource.update(source.id, { content: text.slice(0, 20000) });
+      return Response.json({ source: atualizado });
+    }
 
     if (action === 'listDocs') {
       const { accessToken } = await sdk.connectors.getConnection('googledocs');
