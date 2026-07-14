@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useRef, useEffect } from "react";
+import React, { useMemo, useRef, useEffect } from "react";
 import { computeLayout, TIPO_CORES } from "./graphUtils";
 
 export default function ForceGraph({ nodes, edges, selectedId, onSelect, render, width = 1200, height = 800 }) {
@@ -11,66 +11,80 @@ export default function ForceGraph({ nodes, edges, selectedId, onSelect, render,
   const destaques = new Set((render?.arestas_em_destaque || []).map((a) => `${a.origem}|${a.destino}`));
 
   const svgRef = useRef(null);
-  const [view, setView] = useState({ x: 0, y: 0, k: 1 });
+  const gRef = useRef(null);
+  const view = useRef({ x: 0, y: 0, k: 1 });
   const drag = useRef(null);
+  const clicked = useRef(true);
 
-  // Impede a página de rolar enquanto o usuário dá zoom no grafo
+  // Aplica a transformação diretamente no SVG (sem re-renderizar o React a cada movimento)
+  const applyView = () => {
+    const v = view.current;
+    if (![v.x, v.y, v.k].every(Number.isFinite)) view.current = { x: 0, y: 0, k: 1 };
+    const { x, y, k } = view.current;
+    gRef.current?.setAttribute("transform", `translate(${x} ${y}) scale(${k})`);
+  };
+
   useEffect(() => {
     const svg = svgRef.current;
     if (!svg) return;
-    const block = (e) => e.preventDefault();
-    svg.addEventListener("wheel", block, { passive: false });
-    return () => svg.removeEventListener("wheel", block);
+    applyView();
+
+    // Converte coordenadas do mouse (tela) em coordenadas do viewBox do SVG
+    const toSvgPoint = (clientX, clientY) => {
+      const ctm = svg.getScreenCTM();
+      if (!ctm) return null;
+      const pt = svg.createSVGPoint();
+      pt.x = clientX;
+      pt.y = clientY;
+      return pt.matrixTransform(ctm.inverse());
+    };
+
+    const onWheel = (e) => {
+      e.preventDefault();
+      const p = toSvgPoint(e.clientX, e.clientY);
+      if (!p) return;
+      const v = view.current;
+      const k = Math.min(5, Math.max(0.3, v.k * (e.deltaY < 0 ? 1.12 : 1 / 1.12)));
+      view.current = { k, x: p.x - ((p.x - v.x) / v.k) * k, y: p.y - ((p.y - v.y) / v.k) * k };
+      applyView();
+    };
+    const onPointerDown = (e) => {
+      const p = toSvgPoint(e.clientX, e.clientY);
+      if (!p) return;
+      clicked.current = true;
+      drag.current = { px: p.x, py: p.y, vx: view.current.x, vy: view.current.y };
+      svg.setPointerCapture(e.pointerId);
+    };
+    const onPointerMove = (e) => {
+      if (!drag.current) return;
+      const p = toSvgPoint(e.clientX, e.clientY);
+      if (!p) return;
+      const dx = p.x - drag.current.px;
+      const dy = p.y - drag.current.py;
+      if (Math.abs(dx) > 3 || Math.abs(dy) > 3) clicked.current = false;
+      view.current = { k: view.current.k, x: drag.current.vx + dx, y: drag.current.vy + dy };
+      applyView();
+    };
+    const onPointerUp = () => {
+      drag.current = null;
+    };
+
+    svg.addEventListener("wheel", onWheel, { passive: false });
+    svg.addEventListener("pointerdown", onPointerDown);
+    svg.addEventListener("pointermove", onPointerMove);
+    svg.addEventListener("pointerup", onPointerUp);
+    svg.addEventListener("pointerleave", onPointerUp);
+    return () => {
+      svg.removeEventListener("wheel", onWheel);
+      svg.removeEventListener("pointerdown", onPointerDown);
+      svg.removeEventListener("pointermove", onPointerMove);
+      svg.removeEventListener("pointerup", onPointerUp);
+      svg.removeEventListener("pointerleave", onPointerUp);
+    };
   }, []);
 
-  // Converte coordenadas do mouse (tela) em coordenadas do viewBox do SVG
-  const toSvgPoint = (clientX, clientY) => {
-    const svg = svgRef.current;
-    const ctm = svg?.getScreenCTM();
-    if (!svg || !ctm) return null;
-    const pt = svg.createSVGPoint();
-    pt.x = clientX;
-    pt.y = clientY;
-    return pt.matrixTransform(ctm.inverse());
-  };
-
-  const clampView = (v) => {
-    if (![v.x, v.y, v.k].every(Number.isFinite)) return { x: 0, y: 0, k: 1 };
-    const k = Math.min(5, Math.max(0.3, v.k));
-    // Mantém o conteúdo sempre parcialmente visível
-    const x = Math.min(width * 0.9, Math.max(-width * k + width * 0.1, v.x));
-    const y = Math.min(height * 0.9, Math.max(-height * k + height * 0.1, v.y));
-    return { x, y, k };
-  };
-
-  const onWheel = (e) => {
-    const p = toSvgPoint(e.clientX, e.clientY);
-    if (!p) return;
-    setView((v) => {
-      const k = Math.min(5, Math.max(0.3, v.k * (e.deltaY < 0 ? 1.12 : 1 / 1.12)));
-      return clampView({ k, x: p.x - ((p.x - v.x) / v.k) * k, y: p.y - ((p.y - v.y) / v.k) * k });
-    });
-  };
-  const onPointerDown = (e) => {
-    const p = toSvgPoint(e.clientX, e.clientY);
-    if (!p) return;
-    drag.current = { px: p.x, py: p.y, vx: view.x, vy: view.y, moved: false };
-    e.currentTarget.setPointerCapture(e.pointerId);
-  };
-  const onPointerMove = (e) => {
-    if (!drag.current) return;
-    const p = toSvgPoint(e.clientX, e.clientY);
-    if (!p) return;
-    const dx = p.x - drag.current.px;
-    const dy = p.y - drag.current.py;
-    if (Math.abs(dx) > 2 || Math.abs(dy) > 2) drag.current.moved = true;
-    setView((v) => clampView({ k: v.k, x: drag.current.vx + dx, y: drag.current.vy + dy }));
-  };
-  const onPointerUp = () => {
-    drag.current = null;
-  };
   const clickNode = (n) => {
-    if (drag.current?.moved) return;
+    if (!clicked.current) return;
     onSelect?.(n);
   };
 
@@ -79,13 +93,8 @@ export default function ForceGraph({ nodes, edges, selectedId, onSelect, render,
       ref={svgRef}
       viewBox={`0 0 ${width} ${height}`}
       className="w-full h-full cursor-grab active:cursor-grabbing touch-none"
-      onWheel={onWheel}
-      onPointerDown={onPointerDown}
-      onPointerMove={onPointerMove}
-      onPointerUp={onPointerUp}
-      onPointerLeave={onPointerUp}
     >
-      <g transform={`translate(${view.x} ${view.y}) scale(${view.k})`}>
+      <g ref={gRef}>
       {edges.map((e, i) => {
         const s = positions[index.get(e.origem)];
         const t = positions[index.get(e.destino)];
