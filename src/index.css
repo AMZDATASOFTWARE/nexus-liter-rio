@@ -101,28 +101,28 @@
     opacity: 1;
   }
   2% {
-    transform: translate(-3px, 1px) skewX(2deg);
-    filter: drop-shadow(7px 0 0 rgba(139, 92, 246, 0.35)) drop-shadow(-7px 0 0 rgba(34, 211, 238, 0.3));
-    opacity: 0.85;
+    transform: translate(var(--g-dx, -3px), var(--g-dy, 1px)) skewX(var(--g-skew, 2deg));
+    filter: drop-shadow(var(--g-ghost, 7px) 0 0 rgba(139, 92, 246, 0.35)) drop-shadow(var(--g-ghost2, -7px) 0 0 rgba(34, 211, 238, 0.3));
+    opacity: var(--g-op, 0.85);
   }
   4% {
-    transform: translate(3px, -1px) skewX(-3deg);
-    filter: drop-shadow(-10px 0 0 rgba(139, 92, 246, 0.3)) drop-shadow(10px 2px 0 rgba(255, 255, 255, 0.14));
-    opacity: 0.65;
+    transform: translate(calc(var(--g-dx, -3px) * -1.2), calc(var(--g-dy, 1px) * -1)) skewX(calc(var(--g-skew, 2deg) * -1.5));
+    filter: drop-shadow(calc(var(--g-ghost, 7px) * -1.4) 0 0 rgba(139, 92, 246, 0.3)) drop-shadow(calc(var(--g-ghost2, -7px) * -1.4) 2px 0 rgba(255, 255, 255, 0.14));
+    opacity: calc(var(--g-op, 0.85) - 0.2);
   }
   6% {
-    transform: translate(-2px, 0) skewX(1.5deg);
-    filter: drop-shadow(12px 0 0 rgba(255, 255, 255, 0.12)) drop-shadow(-12px 0 0 rgba(139, 92, 246, 0.28));
-    opacity: 0.75;
+    transform: translate(calc(var(--g-dx, -3px) * 0.7), 0) skewX(calc(var(--g-skew, 2deg) * 0.8));
+    filter: drop-shadow(calc(var(--g-ghost, 7px) * 1.7) 0 0 rgba(255, 255, 255, 0.12)) drop-shadow(calc(var(--g-ghost2, -7px) * 1.7) 0 0 rgba(139, 92, 246, 0.28));
+    opacity: calc(var(--g-op, 0.85) - 0.1);
   }
   8% {
-    transform: translate(2px, 1px) skewX(-1deg);
-    filter: drop-shadow(-5px 0 0 rgba(34, 211, 238, 0.25)) drop-shadow(5px 0 0 rgba(139, 92, 246, 0.2));
-    opacity: 0.85;
+    transform: translate(calc(var(--g-dx, -3px) * -0.6), var(--g-dy, 1px)) skewX(calc(var(--g-skew, 2deg) * -0.5));
+    filter: drop-shadow(calc(var(--g-ghost, 7px) * -0.7) 0 0 rgba(34, 211, 238, 0.25)) drop-shadow(calc(var(--g-ghost2, -7px) * -0.7) 0 0 rgba(139, 92, 246, 0.2));
+    opacity: var(--g-op, 0.85);
   }
   10% {
-    transform: translate(-1px, 0);
-    filter: drop-shadow(3px 0 0 rgba(34, 211, 238, 0.18));
+    transform: translate(calc(var(--g-dx, -3px) * 0.3), 0);
+    filter: drop-shadow(calc(var(--g-ghost, 7px) * 0.4) 0 0 rgba(34, 211, 238, 0.18));
     opacity: 0.95;
   }
 }
