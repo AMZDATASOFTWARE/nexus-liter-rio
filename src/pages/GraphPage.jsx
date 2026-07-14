@@ -116,7 +116,7 @@ export default function GraphPage() {
           </div>
         </div>
       </header>
-      <div className="flex-1 relative">
+      <div className="flex-1 min-h-0 relative">
         {modo === "esfera" ? (
           loadingFisica || !fisica ? (
             <div className="h-full flex flex-col items-center justify-center gap-3 text-zinc-500">

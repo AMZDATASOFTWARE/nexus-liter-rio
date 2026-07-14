@@ -103,7 +103,8 @@ export default function ForceGraph({ nodes, edges, selectedId, onSelect, render,
     <svg
       ref={svgRef}
       viewBox={`0 0 ${width} ${height}`}
-      className="w-full h-full cursor-grab active:cursor-grabbing touch-none"
+      preserveAspectRatio="xMidYMid meet"
+      className="absolute inset-0 w-full h-full cursor-grab active:cursor-grabbing touch-none"
     >
       <g ref={gRef}>
       {edges.map((e, i) => {
