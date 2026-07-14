@@ -2,7 +2,8 @@ import React, { useState, useRef, useEffect } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { base44 } from "@/api/base44Client";
-import { ArrowLeft, Loader2, Users, Network, Terminal, BookOpen } from "lucide-react";
+import { ArrowLeft, Loader2, Users, Network, Terminal, BookOpen, Coins } from "lucide-react";
+import TokenStoreModal from "@/components/billing/TokenStoreModal";
 import CommandManagerSheet from "@/components/narrative/CommandManagerSheet";
 import ChapterPanel from "@/components/narrative/ChapterPanel";
 import BookExporter from "@/components/narrative/BookExporter";
@@ -21,6 +22,7 @@ export default function StoryPage() {
   const [byokPrompt, setByokPrompt] = useState(null);
   const [showCommands, setShowCommands] = useState(false);
   const [capitulo, setCapitulo] = useState(null);
+  const [showStore, setShowStore] = useState(false);
   const [compilando, setCompilando] = useState(false);
 
   const compilarCapitulo = async () => {
@@ -104,6 +106,9 @@ export default function StoryPage() {
               {compilando ? <Loader2 className="w-4 h-4 animate-spin" /> : <BookOpen className="w-4 h-4" />}
             </button>
           )}
+          <button onClick={() => setShowStore(true)} className="shrink-0 p-2 rounded-lg border border-zinc-800 text-zinc-500 hover:text-amber-300 hover:border-amber-500/40 transition-colors" title="Mercado Multiversal — comprar créditos">
+            <Coins className="w-4 h-4" />
+          </button>
           <button onClick={() => setShowCommands(true)} className="shrink-0 p-2 rounded-lg border border-zinc-800 text-zinc-500 hover:text-amber-300 hover:border-amber-500/40 transition-colors" title="Arsenal de Comandos">
             <Terminal className="w-4 h-4" />
           </button>
@@ -154,6 +159,7 @@ export default function StoryPage() {
       {byokPrompt && <ByokPromptPanel prompt={byokPrompt} onClose={() => setByokPrompt(null)} />}
       <CommandManagerSheet open={showCommands} onOpenChange={setShowCommands} />
       {capitulo && <ChapterPanel capitulo={capitulo} onClose={() => setCapitulo(null)} />}
+      <TokenStoreModal open={showStore} onOpenChange={setShowStore} />
     </div>
   );
 }
