@@ -2,7 +2,8 @@ import React, { useState, useRef, useEffect } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { base44 } from "@/api/base44Client";
-import { ArrowLeft, Loader2, Users, Network } from "lucide-react";
+import { ArrowLeft, Loader2, Users, Network, Terminal } from "lucide-react";
+import CommandManagerSheet from "@/components/narrative/CommandManagerSheet";
 import BlockItem from "@/components/narrative/BlockItem";
 import Composer from "@/components/narrative/Composer";
 import CharacterPanel from "@/components/narrative/CharacterPanel";
@@ -16,6 +17,7 @@ export default function StoryPage() {
   const [sending, setSending] = useState(false);
   const [showChars, setShowChars] = useState(false);
   const [byokPrompt, setByokPrompt] = useState(null);
+  const [showCommands, setShowCommands] = useState(false);
   const bottomRef = useRef(null);
 
   const { data: story } = useQuery({
@@ -82,6 +84,9 @@ export default function StoryPage() {
               <Network className="w-4 h-4" />
             </Link>
           )}
+          <button onClick={() => setShowCommands(true)} className="shrink-0 p-2 rounded-lg border border-zinc-800 text-zinc-500 hover:text-amber-300 hover:border-amber-500/40 transition-colors" title="Arsenal de Comandos">
+            <Terminal className="w-4 h-4" />
+          </button>
           {!isNew && (
             <button onClick={() => setShowChars(!showChars)} className={`shrink-0 p-2 rounded-lg border transition-colors ${showChars ? "border-violet-500/40 text-violet-300" : "border-zinc-800 text-zinc-500 hover:text-zinc-300"}`}>
               <Users className="w-4 h-4" />
@@ -127,6 +132,7 @@ export default function StoryPage() {
       </div>
 
       {byokPrompt && <ByokPromptPanel prompt={byokPrompt} onClose={() => setByokPrompt(null)} />}
+      <CommandManagerSheet open={showCommands} onOpenChange={setShowCommands} />
     </div>
   );
 }
