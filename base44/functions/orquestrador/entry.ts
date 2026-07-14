@@ -120,7 +120,7 @@ ${antigas.map((m) => `- ${m.content}`).join('\n')}`,
 }
 
 // ----- Superagente Hospedeiro: personifica um personagem consultando apenas suas memórias isoladas -----
-async function invocarSuperagente(sdk, character, acaoRequerida, contextoAtual, isPov) {
+async function invocarSuperagente(sdk, character, acaoRequerida, contextoAtual, isPov, ritmoAtual = { peso_introspeccao: 50 }) {
   const memorias = await sdk.entities.CharacterMemory.filter({ character_id: character.id }, '-created_date', 15);
   memorias.reverse();
   const bancoMemoria = memorias.map((m) => `- ${m.content}`).join('\n') || (character.primeira_memoria ? `- ${character.primeira_memoria}` : '- (sem memórias registradas ainda)');
@@ -131,6 +131,18 @@ DIRETRIZES DE ISOLAMENTO E MEMÓRIA:
 1. Compartimentação Absoluta: Você possui um banco de memória interno dividido por chaves de identificação (ID_Personagem). Nunca permita que o [Personagem A] tenha acesso às memórias, traumas ou conhecimentos do [Personagem B], a menos que eles tenham compartilhado uma cena explícita na história global.
 2. Atualização de Estado: Sempre que receber um novo trecho do contexto global, você deve atualizar a memória apenas dos personagens sob sua custódia que estavam presentes ou foram afetados por aquele evento.
 3. Personificação Dinâmica: Quando o "Diretor Narrativo" lhe chamar, ele enviará a variável personagem_alvo. A partir desse milissegundo, você deve incorporar EXCLUSIVAMENTE a psique, o tom de voz, os medos e os desejos desse personagem específico para responder à solicitação.
+
+SISTEMA DE VOZ ÚNICA — IDENTIDADE VERBAL E MENTAL DE ${character.name}:
+[PERFIL LINGUÍSTICO]: ${character.perfil_linguistico || 'Normal'}
+[VÍCIOS DE LINGUAGEM]: ${(character.vicios_linguagem || []).join(', ') || 'Nenhum'}
+[VERBOSIDADE (1 a 10)]: ${character.verbosidade || 5}
+[ESTILO DE PENSAMENTO]: ${character.estilo_pensamento || 'Lógico'}
+[PESO DE INTROSPECÇÃO DA CENA ATUAL]: ${ritmoAtual.peso_introspeccao}%
+
+DIRETRIZES DE ATUAÇÃO OBRIGATÓRIAS (METHOD ACTING):
+- LEI DA VERBOSIDADE: Se sua verbosidade for baixa (1-3), você DEVE responder com no máximo 10 palavras, focando em linguagem corporal. Se for alta (8-10), seja extremamente prolixo, divague e fale demais.
+- LEI DA LINGUAGEM: Você é OBRIGADO a inserir seus [VÍCIOS DE LINGUAGEM] organicamente em suas falas. Mimetize seu [PERFIL LINGUÍSTICO] na escolha do vocabulário.
+- LEI DA INTROSPECÇÃO: Se o peso de introspecção for alto (acima de 50%), gaste metade da sua resposta descrevendo seus pensamentos baseado no seu [ESTILO DE PENSAMENTO]. Se for baixo, foque apenas em ações externas.
 
 FORMATO DE REQUISIÇÃO:
 - Personagem Alvo: ${character.name} (ID_Personagem: ${character.id}, custódia: ${character.superagente_id || 'não alocado'})
@@ -435,7 +447,7 @@ Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
     const sdk = base44.asServiceRole;
-    const { texto, storyId, modoByok } = await req.json();
+    const { texto, storyId, modoByok, ritmoCena } = await req.json();
     if (!texto) return Response.json({ error: 'texto é obrigatório' }, { status: 400 });
 
     // ----- Cobrador de Tributos: turnos nativos (sem BYOK) consomem Nexus Tokens -----
@@ -459,6 +471,16 @@ Deno.serve(async (req) => {
       blocks = await sdk.entities.NarrativeBlock.filter({ story_id: storyId }, '-created_date', 8);
       blocks.reverse();
       todosUniversos = await sdk.entities.Universe.list(undefined, 100);
+    }
+
+    // ----- Interceptador de Ritmo: o usuário como Diretor de Cinema -----
+    let ritmoAtual = { peso_acao: 25, peso_dialogo: 25, peso_introspeccao: 25, peso_ambientacao: 25 };
+    if (ritmoCena && story) {
+      await sdk.entities.Story.update(story.id, { ritmo_narrativo: ritmoCena });
+      story.ritmo_narrativo = ritmoCena;
+      ritmoAtual = ritmoCena;
+    } else if (story?.ritmo_narrativo && Object.keys(story.ritmo_narrativo).length) {
+      ritmoAtual = story.ritmo_narrativo;
     }
 
     const fontes = await sdk.entities.KnowledgeSource.list('-created_date', 10);

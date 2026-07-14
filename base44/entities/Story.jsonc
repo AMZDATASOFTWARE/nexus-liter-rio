@@ -56,6 +56,42 @@
     "render_grafo": {
       "type": "string",
       "description": "Comando visual JSON do Orquestrador de Renderiza\u00e7\u00e3o Visual (zoom, n\u00f3s expandidos, clusters colapsados, arestas em destaque)"
+    },
+    "ritmo_narrativo": {
+      "type": "object",
+      "description": "Ritmo da cena definido pelo Diretor de Cinema (usu\u00e1rio) \u2014 pesos de 0 a 100 que ditam o foco da prosa",
+      "properties": {
+        "peso_acao": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Foco em movimento, combate, resolu\u00e7\u00e3o f\u00edsica"
+        },
+        "peso_dialogo": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Foco nas intera\u00e7\u00f5es verbais e discuss\u00f5es"
+        },
+        "peso_introspeccao": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Foco em mon\u00f3logos internos, medos, emo\u00e7\u00f5es"
+        },
+        "peso_ambientacao": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Foco no clima, ilumina\u00e7\u00e3o, cheiros, texturas"
+        }
+      },
+      "required": [
+        "peso_acao",
+        "peso_dialogo",
+        "peso_introspeccao",
+        "peso_ambientacao"
+      ]
     }
   },
   "required": [
