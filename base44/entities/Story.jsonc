@@ -59,31 +59,23 @@
     },
     "ritmo_narrativo": {
       "type": "object",
-      "description": "Ritmo da cena definido pelo Diretor de Cinema (usu\u00e1rio) \u2014 pesos de 0 a 100 que ditam o foco da prosa",
+      "description": "Pesos de ritmo da cena escolhidos pelo autor (Diretor de Cinema), de 0 a 100",
       "properties": {
         "peso_acao": {
           "type": "number",
-          "minimum": 0,
-          "maximum": 100,
-          "description": "Foco em movimento, combate, resolu\u00e7\u00e3o f\u00edsica"
+          "description": "Foco em movimento, combate, resolu\u00e7\u00e3o f\u00edsica (0 a 100)"
         },
         "peso_dialogo": {
           "type": "number",
-          "minimum": 0,
-          "maximum": 100,
-          "description": "Foco nas intera\u00e7\u00f5es verbais e discuss\u00f5es"
+          "description": "Foco nas intera\u00e7\u00f5es verbais e discuss\u00f5es (0 a 100)"
         },
         "peso_introspeccao": {
           "type": "number",
-          "minimum": 0,
-          "maximum": 100,
-          "description": "Foco em mon\u00f3logos internos, medos, emo\u00e7\u00f5es"
+          "description": "Foco em mon\u00f3logos internos, medos, emo\u00e7\u00f5es (0 a 100)"
         },
         "peso_ambientacao": {
           "type": "number",
-          "minimum": 0,
-          "maximum": 100,
-          "description": "Foco no clima, ilumina\u00e7\u00e3o, cheiros, texturas"
+          "description": "Foco no clima, ilumina\u00e7\u00e3o, cheiros, texturas (0 a 100)"
         }
       },
       "required": [

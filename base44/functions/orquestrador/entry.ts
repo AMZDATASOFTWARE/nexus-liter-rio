@@ -906,7 +906,8 @@ DIRETRIZES DE COLISÃO:
           c,
           isPov ? 'Descrever reação interna ao novo acontecimento ditado pelo usuário' : 'Descrever como este personagem age, fala e reage a este acontecimento',
           contextoCena,
-          isPov
+          isPov,
+          ritmoAtual
         );
         return { nome: c.name, isPov, resposta: r.resposta };
       })
@@ -982,7 +983,8 @@ ${dadosNpcs}
         novoPovChar,
         'Relatar suas memórias mais vivas, sensações físicas imediatas e estado emocional atual, para ancorar uma transição de consciência',
         contextoCena,
-        true
+        true,
+        ritmoAtual
       );
       const transicao = await sdk.integrations.Core.InvokeLLM({
         prompt: `Você é o Gestor de Transição de Consciência. O usuário acaba de realizar um salto de Ponto de Vista (POV) na narrativa multiversal.
@@ -1065,6 +1067,15 @@ MECÂNICA DE FUNCIONAMENTO:
 1. Ponto de Vista (POV): A história deve ser narrada sempre sob a perspectiva de ${povNarrativa || 'narrador onisciente'}. Suas descrições sensoriais devem refletir a mente desse personagem (retornada pelo Superagente correspondente).
 2. Coordenação de Atores: Se o usuário interagir com outros personagens, você deve utilizar as respostas fornecidas pelos Superagentes deles para ditar como eles agem, falam e reagem na cena. Nunca invente uma reação para um personagem que contradiga a memória fornecida pelo Superagente dele.
 3. Expansão Imersiva: O usuário digitará a direção da história. Você deve expandir isso, adicionando descrições climáticas ricas, tensões físicas e atmosfera. Avance a trama, mas deixe sempre o controle de decisão (o gancho) para a próxima interação do usuário.
+
+REGRAS DE OURO DA NARRATIVA:
+1. A REGRA DA AMBIENTAÇÃO: Todo bloco gerado DEVE atualizar organicamente o cenário. Descreva pelo menos um sentido físico (cheiro, luz, temperatura, vento) antes de avançar a ação.
+2. O METRÔNOMO DO DIRETOR: A prosa DEVE refletir estritamente estes pesos matemáticos escolhidos pelo autor:
+   - [AÇÃO: ${ritmoAtual.peso_acao}%]: Se for alto, use verbos cinéticos, frases curtas e ritmo acelerado.
+   - [DIÁLOGO: ${ritmoAtual.peso_dialogo}%]: Se for alto, foque em interações verbais.
+   - [INTROSPECÇÃO: ${ritmoAtual.peso_introspeccao}%]: Se for alto, mergulhe na mente do POV.
+   - [AMBIENTAÇÃO: ${ritmoAtual.peso_ambientacao}%]: Se for alto, gaste parágrafos detalhando a estética e textura do mundo.
+3. PRESERVAÇÃO DO ELENCO: Ao costurar as respostas dos Superagentes, transcreva a voz deles EXATAMENTE como eles forneceram. Não corrija os vícios de linguagem ou a verbosidade (mesmo se o personagem for monossilábico ou gago).
 
 SUBSISTEMAS AUXILIARES ACIONADOS (${agentes.join(', ')}):
 - "Arquiteto de Dados Relacionais": se surgirem personagens novos (${(params.personagens_detectados || []).join(', ') || 'nenhum'}), defina descrição e estado psicológico para cadastro.

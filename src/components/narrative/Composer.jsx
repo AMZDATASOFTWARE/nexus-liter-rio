@@ -4,10 +4,12 @@ import { useQuery } from "@tanstack/react-query";
 import { base44 } from "@/api/base44Client";
 import SlashCommandMenu from "./SlashCommandMenu";
 import OracleSuggestions from "./OracleSuggestions";
+import PacingSliders from "./PacingSliders";
 
 export default function Composer({ onSend, sending, placeholder, allowByok, storyId }) {
   const [texto, setTexto] = useState("");
   const [byok, setByok] = useState(false);
+  const [ritmoCena, setRitmoCena] = useState({ peso_acao: 25, peso_dialogo: 25, peso_introspeccao: 25, peso_ambientacao: 25 });
   const [activeIndex, setActiveIndex] = useState(0);
 
   const { data: comandos = [] } = useQuery({
@@ -27,7 +29,7 @@ export default function Composer({ onSend, sending, placeholder, allowByok, stor
 
   const submit = () => {
     if (!texto.trim() || sending) return;
-    onSend(texto.trim(), byok);
+    onSend(texto.trim(), byok, ritmoCena);
     setTexto("");
   };
 
@@ -46,6 +48,7 @@ export default function Composer({ onSend, sending, placeholder, allowByok, stor
       {storyId && <OracleSuggestions storyId={storyId} onPick={setTexto} />}
       {menuAberto && <SlashCommandMenu comandos={filtrados} activeIndex={activeIndex} onPick={autocompletar} />}
       <div className="flex items-end gap-3 bg-zinc-900/80 backdrop-blur border border-zinc-800 rounded-2xl p-3 shadow-2xl shadow-black/40">
+        <PacingSliders onChange={setRitmoCena} />
         {allowByok && (
           <button
             onClick={() => setByok(!byok)}

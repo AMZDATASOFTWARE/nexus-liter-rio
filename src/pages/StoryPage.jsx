@@ -58,13 +58,14 @@ export default function StoryPage() {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [blocks.length]);
 
-  const send = async (texto, modoByok) => {
+  const send = async (texto, modoByok, ritmoCena) => {
     setSending(true);
     try {
       const res = await base44.functions.invoke("orquestrador", {
         texto,
         storyId: isNew ? null : id,
         modoByok: !isNew && !!modoByok,
+        ritmoCena,
       });
       if (res.data?.system_prompt_master) setByokPrompt(res.data.system_prompt_master);
       if (isNew && res.data?.storyId) {
