@@ -2,8 +2,9 @@ import React, { useState, useRef, useEffect } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { base44 } from "@/api/base44Client";
-import { ArrowLeft, Loader2, Users, Network, Terminal } from "lucide-react";
+import { ArrowLeft, Loader2, Users, Network, Terminal, BookOpen } from "lucide-react";
 import CommandManagerSheet from "@/components/narrative/CommandManagerSheet";
+import ChapterPanel from "@/components/narrative/ChapterPanel";
 import BlockItem from "@/components/narrative/BlockItem";
 import Composer from "@/components/narrative/Composer";
 import CharacterPanel from "@/components/narrative/CharacterPanel";
@@ -18,6 +19,18 @@ export default function StoryPage() {
   const [showChars, setShowChars] = useState(false);
   const [byokPrompt, setByokPrompt] = useState(null);
   const [showCommands, setShowCommands] = useState(false);
+  const [capitulo, setCapitulo] = useState(null);
+  const [compilando, setCompilando] = useState(false);
+
+  const compilarCapitulo = async () => {
+    setCompilando(true);
+    try {
+      const res = await base44.functions.invoke("compilarCanone", { storyId: id });
+      setCapitulo(res.data);
+    } finally {
+      setCompilando(false);
+    }
+  };
   const bottomRef = useRef(null);
 
   const { data: story } = useQuery({
@@ -84,6 +97,11 @@ export default function StoryPage() {
               <Network className="w-4 h-4" />
             </Link>
           )}
+          {!isNew && (
+            <button onClick={compilarCapitulo} disabled={compilando} className="shrink-0 p-2 rounded-lg border border-zinc-800 text-zinc-500 hover:text-amber-300 hover:border-amber-500/40 transition-colors disabled:opacity-50" title="Compilar capítulo (Compilador de Cânone)">
+              {compilando ? <Loader2 className="w-4 h-4 animate-spin" /> : <BookOpen className="w-4 h-4" />}
+            </button>
+          )}
           <button onClick={() => setShowCommands(true)} className="shrink-0 p-2 rounded-lg border border-zinc-800 text-zinc-500 hover:text-amber-300 hover:border-amber-500/40 transition-colors" title="Arsenal de Comandos">
             <Terminal className="w-4 h-4" />
           </button>
@@ -133,6 +151,7 @@ export default function StoryPage() {
 
       {byokPrompt && <ByokPromptPanel prompt={byokPrompt} onClose={() => setByokPrompt(null)} />}
       <CommandManagerSheet open={showCommands} onOpenChange={setShowCommands} />
+      {capitulo && <ChapterPanel capitulo={capitulo} onClose={() => setCapitulo(null)} />}
     </div>
   );
 }
