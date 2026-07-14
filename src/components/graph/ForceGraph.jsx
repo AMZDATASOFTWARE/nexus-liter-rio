@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useState, useRef } from "react";
 import { computeLayout, TIPO_CORES } from "./graphUtils";
 
 export default function ForceGraph({ nodes, edges, selectedId, onSelect, render, width = 1200, height = 800 }) {
@@ -10,8 +10,52 @@ export default function ForceGraph({ nodes, edges, selectedId, onSelect, render,
   const expandidos = new Set([...(render?.nos_para_expandir || []), render?.camera_foco_id].filter(Boolean));
   const destaques = new Set((render?.arestas_em_destaque || []).map((a) => `${a.origem}|${a.destino}`));
 
+  const svgRef = useRef(null);
+  const [view, setView] = useState({ x: 0, y: 0, k: 1 });
+  const drag = useRef(null);
+
+  const onWheel = (e) => {
+    e.preventDefault();
+    const rect = svgRef.current.getBoundingClientRect();
+    const px = ((e.clientX - rect.left) / rect.width) * width;
+    const py = ((e.clientY - rect.top) / rect.height) * height;
+    setView((v) => {
+      const k = Math.min(8, Math.max(0.2, v.k * (e.deltaY < 0 ? 1.12 : 1 / 1.12)));
+      return { k, x: px - ((px - v.x) / v.k) * k, y: py - ((py - v.y) / v.k) * k };
+    });
+  };
+  const onPointerDown = (e) => {
+    drag.current = { sx: e.clientX, sy: e.clientY, vx: view.x, vy: view.y, moved: false };
+    e.currentTarget.setPointerCapture(e.pointerId);
+  };
+  const onPointerMove = (e) => {
+    if (!drag.current) return;
+    const rect = svgRef.current.getBoundingClientRect();
+    const dx = ((e.clientX - drag.current.sx) / rect.width) * width;
+    const dy = ((e.clientY - drag.current.sy) / rect.height) * height;
+    if (Math.abs(dx) > 2 || Math.abs(dy) > 2) drag.current.moved = true;
+    setView((v) => ({ ...v, x: drag.current.vx + dx, y: drag.current.vy + dy }));
+  };
+  const onPointerUp = () => {
+    drag.current = null;
+  };
+  const clickNode = (n) => {
+    if (drag.current?.moved) return;
+    onSelect?.(n);
+  };
+
   return (
-    <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-full">
+    <svg
+      ref={svgRef}
+      viewBox={`0 0 ${width} ${height}`}
+      className="w-full h-full cursor-grab active:cursor-grabbing touch-none"
+      onWheel={onWheel}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
+      onPointerLeave={onPointerUp}
+    >
+      <g transform={`translate(${view.x} ${view.y}) scale(${view.k})`}>
       {edges.map((e, i) => {
         const s = positions[index.get(e.origem)];
         const t = positions[index.get(e.destino)];
@@ -35,7 +79,7 @@ export default function ForceGraph({ nodes, edges, selectedId, onSelect, render,
         const brilho = expandidos.has(n.node_id);
         const foco = n.node_id === render?.camera_foco_id;
         return (
-          <g key={n.node_id} onClick={() => onSelect?.(n)} className="cursor-pointer" opacity={dim ? 0.18 : 1}>
+          <g key={n.node_id} onClick={() => clickNode(n)} className="cursor-pointer" opacity={dim ? 0.18 : 1}>
             {brilho && <circle cx={p.x} cy={p.y} r={foco ? 26 : 20} fill="none" stroke={cor} strokeWidth="1" opacity="0.5" className="animate-pulse" />}
             <circle cx={p.x} cy={p.y} r={sel ? 16 : brilho ? 13 : 11} fill={cor} fillOpacity={sel ? 0.35 : brilho ? 0.28 : 0.18} stroke={cor} strokeWidth={sel || brilho ? 2 : 1.2} />
             <circle cx={p.x} cy={p.y} r="4" fill={cor} />
@@ -47,6 +91,7 @@ export default function ForceGraph({ nodes, edges, selectedId, onSelect, render,
           </g>
         );
       })}
+      </g>
     </svg>
   );
 }
