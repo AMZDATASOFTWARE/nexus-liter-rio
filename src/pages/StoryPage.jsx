@@ -1,0 +1,118 @@
+import React, { useState, useRef, useEffect } from "react";
+import { useParams, useNavigate, Link } from "react-router-dom";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { base44 } from "@/api/base44Client";
+import { ArrowLeft, Loader2, Users } from "lucide-react";
+import BlockItem from "@/components/narrative/BlockItem";
+import Composer from "@/components/narrative/Composer";
+import CharacterPanel from "@/components/narrative/CharacterPanel";
+
+export default function StoryPage() {
+  const { id } = useParams();
+  const isNew = id === "nova";
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const [sending, setSending] = useState(false);
+  const [showChars, setShowChars] = useState(false);
+  const bottomRef = useRef(null);
+
+  const { data: story } = useQuery({
+    queryKey: ["story", id],
+    queryFn: () => base44.entities.Story.get(id),
+    enabled: !isNew,
+  });
+  const { data: blocks = [] } = useQuery({
+    queryKey: ["blocks", id],
+    queryFn: () => base44.entities.NarrativeBlock.filter({ story_id: id }, "created_date", 500),
+    enabled: !isNew,
+  });
+  const { data: characters = [] } = useQuery({
+    queryKey: ["characters", story?.universe_id],
+    queryFn: () => base44.entities.Character.filter({ universe_id: story.universe_id }),
+    enabled: !!story,
+  });
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [blocks.length]);
+
+  const send = async (texto) => {
+    setSending(true);
+    try {
+      const res = await base44.functions.invoke("orquestrador", {
+        texto,
+        storyId: isNew ? null : id,
+      });
+      if (isNew && res.data?.storyId) {
+        navigate(`/historia/${res.data.storyId}`, { replace: true });
+      } else {
+        queryClient.invalidateQueries({ queryKey: ["blocks", id] });
+        queryClient.invalidateQueries({ queryKey: ["story", id] });
+        queryClient.invalidateQueries({ queryKey: ["characters", story?.universe_id] });
+      }
+    } finally {
+      setSending(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-[#08080f] text-zinc-100 flex flex-col">
+      <header className="sticky top-0 z-20 backdrop-blur-xl bg-[#08080f]/80 border-b border-zinc-900">
+        <div className="max-w-4xl mx-auto px-5 py-4 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3 min-w-0">
+            <Link to="/" className="text-zinc-500 hover:text-zinc-200 transition-colors shrink-0">
+              <ArrowLeft className="w-5 h-5" />
+            </Link>
+            <div className="min-w-0">
+              <h1 className="font-display text-lg truncate">{isNew ? "Nova História" : story?.title || "..."}</h1>
+              {story?.current_pov_name && (
+                <p className="text-[11px] text-amber-300/70 tracking-wide">POV · {story.current_pov_name}</p>
+              )}
+            </div>
+          </div>
+          {!isNew && (
+            <button onClick={() => setShowChars(!showChars)} className={`shrink-0 p-2 rounded-lg border transition-colors ${showChars ? "border-violet-500/40 text-violet-300" : "border-zinc-800 text-zinc-500 hover:text-zinc-300"}`}>
+              <Users className="w-4 h-4" />
+            </button>
+          )}
+        </div>
+      </header>
+
+      <div className="flex-1 max-w-4xl w-full mx-auto px-5 flex gap-8">
+        <main className="flex-1 py-10 space-y-10 pb-44 min-w-0">
+          {isNew && blocks.length === 0 && (
+            <div className="text-center py-24 space-y-3">
+              <p className="font-display text-2xl text-zinc-400">O zero absoluto.</p>
+              <p className="text-sm text-zinc-600 max-w-sm mx-auto">Dite o início da sua história e o Criador de Gênesis dará forma ao universo, aos personagens e à primeira cena.</p>
+            </div>
+          )}
+          {blocks.map((b) => <BlockItem key={b.id} block={b} />)}
+          {sending && (
+            <div className="flex items-center gap-3 text-violet-300/70 text-sm">
+              <Loader2 className="w-4 h-4 animate-spin" />
+              <span className="animate-pulse">Orquestrador delegando aos Superagentes...</span>
+            </div>
+          )}
+          <div ref={bottomRef} />
+        </main>
+        {showChars && !isNew && (
+          <aside className="hidden md:block w-64 shrink-0 py-10 pb-44">
+            <CharacterPanel characters={characters} povName={story?.current_pov_name} inScene={story?.characters_in_scene || []} />
+          </aside>
+        )}
+      </div>
+
+      {showChars && !isNew && (
+        <div className="md:hidden fixed inset-x-0 bottom-28 z-30 max-h-64 overflow-y-auto bg-[#0b0b14] border-t border-zinc-800 px-5 py-4">
+          <CharacterPanel characters={characters} povName={story?.current_pov_name} inScene={story?.characters_in_scene || []} />
+        </div>
+      )}
+
+      <div className="fixed bottom-0 inset-x-0 z-20 bg-gradient-to-t from-[#08080f] via-[#08080f]/95 to-transparent pt-10 pb-5 px-5">
+        <div className="max-w-3xl mx-auto">
+          <Composer onSend={send} sending={sending} placeholder={isNew ? "Dite o início da história..." : "Continue a narrativa, mude o POV ou introduza algo novo..."} />
+        </div>
+      </div>
+    </div>
+  );
+}

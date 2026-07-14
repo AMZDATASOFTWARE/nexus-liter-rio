@@ -1,0 +1,17 @@
+{
+  "name": "Universe",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Nome do universo"
+    },
+    "rules": {
+      "type": "string",
+      "description": "Regras e leis f\u00edsicas/metaf\u00edsicas do universo"
+    }
+  },
+  "required": [
+    "name"
+  ]
+}

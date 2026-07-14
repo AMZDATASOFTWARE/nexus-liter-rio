@@ -1,0 +1,37 @@
+{
+  "name": "Story",
+  "type": "object",
+  "properties": {
+    "universe_id": {
+      "type": "string",
+      "description": "ID do universo"
+    },
+    "title": {
+      "type": "string",
+      "description": "T\u00edtulo da hist\u00f3ria"
+    },
+    "timeline_summary": {
+      "type": "string",
+      "description": "Resumo da linha do tempo at\u00e9 agora"
+    },
+    "current_pov_character_id": {
+      "type": "string",
+      "description": "ID do personagem cujo POV est\u00e1 ativo"
+    },
+    "current_pov_name": {
+      "type": "string",
+      "description": "Nome do personagem do POV ativo"
+    },
+    "characters_in_scene": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Nomes dos personagens presentes na cena atual"
+    }
+  },
+  "required": [
+    "universe_id",
+    "title"
+  ]
+}
