@@ -47,6 +47,21 @@
     "eventos_historicos": {
       "type": "string",
       "description": "Par\u00e1grafo denso com os fatos inalter\u00e1veis das mem\u00f3rias antigas compactadas"
+    },
+    "conhecimentos_assimilados": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Regras, leis, idiomas e fac\u00e7\u00f5es do G\u00eanesis visitado j\u00e1 compreendidos pelo viajante (Assimilador de Conhecimento Multiversal)"
+    },
+    "nivel_adaptacao": {
+      "type": "string",
+      "description": "N\u00edvel de adapta\u00e7\u00e3o do viajante \u00e0 nova realidade (0% a 100%)"
+    },
+    "diretriz_comportamental": {
+      "type": "string",
+      "description": "Instru\u00e7\u00e3o do Assimilador para a IA Narradora sobre como o viajante deve agir daqui em diante"
     }
   },
   "required": [

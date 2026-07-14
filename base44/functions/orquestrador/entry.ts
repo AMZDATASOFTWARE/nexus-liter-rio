@@ -125,6 +125,7 @@ Histórico compactado: ${character.eventos_historicos || '(nenhum)'}
 MEMÓRIAS RECENTES ISOLADAS DE ${character.name} (acesso exclusivo a esta chave):
 ${bancoMemoria}
 Perfil: ${character.description || '?'} | Estado psicológico: ${character.psychological_state || '?'} | Traços: ${(character.tracos_iniciais || []).join(', ') || '?'}
+${(character.conhecimentos_assimilados || []).length ? `\nCONHECIMENTOS JÁ ASSIMILADOS DESTE GÊNESIS (Assimilador de Conhecimento Multiversal — o personagem JÁ compreende estes elementos e NÃO deve reagir com surpresa extrema a eles novamente; nível de adaptação: ${character.nivel_adaptacao || '?'}):\n${(character.conhecimentos_assimilados || []).map((k) => `- ${k}`).join('\n')}` : ''}
 
 SUA TAREFA:
 Responda assumindo a primeira pessoa (${isPov ? 'este personagem É o POV atual' : 'este personagem é coadjuvante — descreva a reação profunda em terceira pessoa'}), consultando exclusivamente as memórias isoladas de ${character.name}. Não mencione o fato de que você hospeda outros personagens. Responda em português, em no máximo um parágrafo denso.`,
@@ -261,6 +262,42 @@ ${dadosBrutos}`,
   if (novasArestas.length) await sdk.entities.GraphEdge.bulkCreate(novasArestas);
 
   return { nos_novos: novosNos.length, nos_atualizados: (res.nos_atualizados_ou_criados || []).length - novosNos.length, arestas_novas: novasArestas.length };
+}
+
+// ----- Assimilador de Conhecimento Multiversal: aprendizado de viajantes em Gênesis alheio -----
+async function assimiladorConhecimento(sdk, character, textoUltimoTurno) {
+  const conhecimentosAtuais = (character.conhecimentos_assimilados || []).map((k) => `- ${k}`).join('\n') || 'nenhum (recém-chegado a esta realidade)';
+  const res = await sdk.integrations.Core.InvokeLLM({
+    prompt: `Você é o Assimilador de Conhecimento Multiversal do Base 44. O ${character.name} está atualmente explorando um Gênesis (universo) que não é o seu. Sua função é monitorar a interação atual e registrar qualquer nova regra, lei física, idioma ou facção que o personagem tenha compreendido ou descoberto neste turno.
+
+DIRETRIZES DE ASSIMILAÇÃO:
+1. Nível de Fluência: O personagem aprendeu algo novo de forma definitiva ou apenas tem uma teoria? (Ex: "Descobriu que o minério azul flutua" vs "Acha que a magia vem do sol").
+2. Atualização de Perfil: Adicione essas descobertas ao banco de memória ativa do Superagente. A partir de agora, o personagem NÃO DEVE agir com surpresa extrema ao ver esse elemento específico novamente.
+3. Síndrome do Impostor/Adaptação: Indique o quão confortável o personagem está se tornando nesta nova realidade (0% a 100%). Nível anterior: ${character.nivel_adaptacao || '0%'}.
+
+[TEXTO DA ÚLTIMA INTERAÇÃO E AÇÕES DO PERSONAGEM]:
+"${textoUltimoTurno}"
+[CONHECIMENTOS PREVIAMENTE ASSIMILADOS]:
+${conhecimentosAtuais}`,
+    response_json_schema: {
+      type: 'object',
+      properties: {
+        id_personagem: { type: 'string' },
+        novos_conhecimentos_adquiridos_neste_turno: { type: 'array', items: { type: 'string' }, description: 'Fatos novos compreendidos definitivamente ou teorias (marcadas como teoria)' },
+        nivel_de_adaptacao_atualizado: { type: 'string', description: 'Porcentagem % (0% a 100%)' },
+        diretriz_comportamental_futura: { type: 'string', description: "Instrução para a IA Narradora (Ex: 'Ele agora sabe recarregar a arma de plasma, não descreva mais como um processo confuso')" }
+      },
+      required: ['id_personagem', 'novos_conhecimentos_adquiridos_neste_turno', 'nivel_de_adaptacao_atualizado', 'diretriz_comportamental_futura']
+    }
+  });
+  const novos = res.novos_conhecimentos_adquiridos_neste_turno || [];
+  const atualizado = {
+    conhecimentos_assimilados: [...(character.conhecimentos_assimilados || []), ...novos],
+    nivel_adaptacao: res.nivel_de_adaptacao_atualizado,
+    diretriz_comportamental: res.diretriz_comportamental_futura
+  };
+  await sdk.entities.Character.update(character.id, atualizado);
+  return { personagem: character.name, novos_conhecimentos: novos, nivel_de_adaptacao: res.nivel_de_adaptacao_atualizado, diretriz: res.diretriz_comportamental_futura };
 }
 
 // ----- Diretor Narrativo de Crossover: a cena exata em que os mundos colidem -----
@@ -732,6 +769,7 @@ DIRETRIZES DE COLISÃO:
       })
     );
     const dadosAgentesEmCena = reacoes.map((r) => `[${r.nome}${r.isPov ? ' — POV' : ''}]: ${r.resposta}`).join('\n') || '(nenhum superagente em cena)';
+    const viajantes = emCena.filter((c) => (c.description || '').includes('[Visitante do Gênesis'));
 
     // ----- Árbitro de Consequências: calcula sucesso/falha da ação tentada -----
     const povAtualChar = characters.find((c) => c.name === story.current_pov_name);
@@ -822,6 +860,7 @@ Escreva apenas o parágrafo literário de transição (aterrissagem de consciên
         colisao_de_genesis: colisao,
         cena_de_colisao_do_diretor_de_crossover: cenaCrossover,
         quarentena_narrativa_viajantes: quarentenas.length ? quarentenas : null,
+        assimilacao_dos_viajantes: viajantes.length ? viajantes.map((v) => ({ nome: v.name, nivel_de_adaptacao: v.nivel_adaptacao || '0%', conhecimentos_assimilados: v.conhecimentos_assimilados || [], diretriz_comportamental: v.diretriz_comportamental || null })) : null,
         personagens_em_cena: emCena.map((c) => ({ nome: c.name, estado_psicologico: c.psychological_state || '?', tracos: c.tracos_iniciais || [], perfil: c.description || '?' })),
         respostas_dos_superagentes: reacoes.map((r) => ({ personagem: r.nome, pov: r.isPov, reacao: r.resposta })),
         veredicto_do_arbitro: veredicto,
@@ -872,6 +911,8 @@ ${paradoxo ? `[FRATURA TEMPORAL — GUARDIÃO DOS PARADOXOS]: A realidade acaba 
 ${quarentenas.map((q) => `- ${q.nome}: ${q.reacao_interna}`).join('\n')}
 ` : ''}${cenaCrossover ? `[CENA DE COLISÃO ESCRITA PELO DIRETOR NARRATIVO DE CROSSOVER — o campo "prosa" deste turno DEVE reproduzir esta cena (apenas ajustes mínimos de costura são permitidos), e todos os metadados devem ser derivados dela]:
 ${cenaCrossover}
+` : ''}${viajantes.some((v) => v.diretriz_comportamental) ? `[ASSIMILADOR DE CONHECIMENTO MULTIVERSAL — diretrizes comportamentais dos viajantes; respeite o que cada um JÁ aprendeu deste Gênesis e NÃO os faça reagir com surpresa extrema a elementos já assimilados]:
+${viajantes.filter((v) => v.diretriz_comportamental).map((v) => `- ${v.name} (adaptação ${v.nivel_adaptacao || '?'}): ${v.diretriz_comportamental}`).join('\n')}
 ` : ''}[VEREDICTO DO ÁRBITRO DE CONSEQUÊNCIAS — a prosa DEVE respeitar rigorosamente este desfecho; a ação do usuário NÃO acontece automaticamente como ele quis]:
 - Status da ação: ${veredicto.status_da_acao}
 - O que realmente acontece: ${veredicto.descricao_do_desfecho}
@@ -943,6 +984,11 @@ No campo "prosa", escreva a continuação literária direta, em português. Sem 
       await Promise.all(characters.filter((c) => idsComMemoriaNova.has(c.id)).map((c) => compactarMemorias(sdk, c)))
     ).filter(Boolean);
 
+    // Assimilador de Conhecimento Multiversal: registra o que cada viajante aprendeu neste turno
+    const assimilacoes = await Promise.all(
+      viajantes.map((v) => assimiladorConhecimento(sdk, v, resultado.prosa))
+    );
+
     // Sincronizador de Estado Global
     const estadoAnterior = `{ "linha_temporal_atual": "${universe.name}", "data_ou_hora_aproximada": "${story.data_hora_atual || story.era_inicial || 'desconhecida'}", "cenario_focado": "${story.cenario_atual || 'desconhecido'}", "condicao_climatica_atmosferica": "${story.clima_atual || story.clima_inicial || 'desconhecida'}" }`;
     const sincronizacao = await sincronizarEstadoGlobal(sdk, universe.name, resultado.prosa, estadoAnterior);
@@ -970,7 +1016,7 @@ ESTADO GLOBAL ATUAL: momento "${atual.data_ou_hora_aproximada}", cenário "${atu
 NOTAS DO SINCRONIZADOR PARA O GRAFO: ${sincronizacao.notas_para_o_grafo}
 PERSONAGENS E AGENTES BASE44: ${characters.map((c) => `${c.name} → ${c.superagente_id || '?'}`).join('; ')}`);
 
-    return Response.json({ roteamento, storyId: story.id, alocacoes, paradoxo, colisao, quarentenas, veredicto, sincronizacao, grafo, compactacoes });
+    return Response.json({ roteamento, storyId: story.id, alocacoes, paradoxo, colisao, quarentenas, assimilacoes, veredicto, sincronizacao, grafo, compactacoes });
   } catch (error) {
     return Response.json({ error: error.message }, { status: 500 });
   }
