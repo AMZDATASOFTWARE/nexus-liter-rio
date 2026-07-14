@@ -281,33 +281,49 @@ CONTEXTO DO ORQUESTRADOR: ${params.contexto_imediato_a_repassar || ''}${conhecim
       return Response.json({ roteamento, storyId: newStory.id, alocacoes: alocacoesGenesis });
     }
 
-    // ----- Superagente Hospedeiro: reação interna do POV atual -----
-    let vozSuperagente = null;
-    const povAtual = characters.find((c) => c.name === story.current_pov_name);
-    if (povAtual) {
-      const reacao = await invocarSuperagente(
-        sdk,
-        povAtual,
-        'Descrever reação interna ao novo acontecimento ditado pelo usuário',
-        `${texto} | Cenário: ${story.cenario_atual || '?'} | Clima: ${story.clima_atual || '?'} | Momento: ${story.data_hora_atual || '?'}`,
-        true
-      );
-      vozSuperagente = reacao.resposta;
-    }
+    // ----- Superagentes Hospedeiros: reações reais de TODOS os personagens em cena -----
+    const contextoCena = `${texto} | Cenário: ${story.cenario_atual || '?'} | Clima: ${story.clima_atual || '?'} | Momento: ${story.data_hora_atual || '?'}`;
+    const emCena = characters.filter((c) => (story.characters_in_scene || []).includes(c.name) || c.name === story.current_pov_name);
+    const reacoes = await Promise.all(
+      emCena.map(async (c) => {
+        const isPov = c.name === story.current_pov_name;
+        const r = await invocarSuperagente(
+          sdk,
+          c,
+          isPov ? 'Descrever reação interna ao novo acontecimento ditado pelo usuário' : 'Descrever como este personagem age, fala e reage a este acontecimento',
+          contextoCena,
+          isPov
+        );
+        return { nome: c.name, isPov, resposta: r.resposta };
+      })
+    );
+    const dadosAgentesEmCena = reacoes.map((r) => `[${r.nome}${r.isPov ? ' — POV' : ''}]: ${r.resposta}`).join('\n') || '(nenhum superagente em cena)';
 
-    // ----- Diretor Narrativo / Gestor de Transição / Arquiteto de Dados -----
+    // ----- Orquestrador Narrativo Principal -----
     const resultado = await sdk.integrations.Core.InvokeLLM({
-      prompt: `Você é a rede de Superagentes do sistema literário multiversal. Os agentes acionados pelo Orquestrador foram: ${agentes.join(', ')}.
-- "Diretor Narrativo": continua a história em prosa literária rica, mantendo coerência com o universo e a linha do tempo.
+      prompt: `Você é o Orquestrador Narrativo Principal. Sua função é receber o texto do usuário, identificar quais personagens estão em cena, consultar os "Superagentes Hospedeiros" do Base 44 para obter as reações reais e psicológicas desses personagens, e então tecer tudo isso em uma prosa literária imersiva e de alta qualidade.
+
+MECÂNICA DE FUNCIONAMENTO:
+1. Ponto de Vista (POV): A história deve ser narrada sempre sob a perspectiva de ${story.current_pov_name || 'narrador onisciente'}. Suas descrições sensoriais devem refletir a mente desse personagem (retornada pelo Superagente correspondente).
+2. Coordenação de Atores: Se o usuário interagir com outros personagens, você deve utilizar as respostas fornecidas pelos Superagentes deles para ditar como eles agem, falam e reagem na cena. Nunca invente uma reação para um personagem que contradiga a memória fornecida pelo Superagente dele.
+3. Expansão Imersiva: O usuário digitará a direção da história. Você deve expandir isso, adicionando descrições climáticas ricas, tensões físicas e atmosfera. Avance a trama, mas deixe sempre o controle de decisão (o gancho) para a próxima interação do usuário.
+
+SUBSISTEMAS AUXILIARES ACIONADOS (${agentes.join(', ')}):
 - "Gestor de Transição de Consciência": se houver mudança de POV solicitada (${params.mudanca_de_pov_solicitada || 'nenhuma'}), escreva a transição a partir da consciência do novo personagem, refletindo seu estado psicológico.
-- "Arquiteto de Dados Relacionais" e "Alocador de Personagens": se surgirem personagens novos (${(params.personagens_detectados || []).join(', ') || 'nenhum'}), defina descrição e estado psicológico para cadastro.
+- "Arquiteto de Dados Relacionais": se surgirem personagens novos (${(params.personagens_detectados || []).join(', ') || 'nenhum'}), defina descrição e estado psicológico para cadastro.
 
-ESTADO ATUAL: ${estado}
-DITADO DO USUÁRIO: ${texto}
-CONTEXTO DO ORQUESTRADOR: ${params.contexto_imediato_a_repassar || ''}
-${vozSuperagente ? `VOZ DO SUPERAGENTE HOSPEDEIRO (reação interna do POV ${story.current_pov_name} — incorpore esta psique na prosa): ${vozSuperagente}` : ''}${conhecimento}
+VARIÁVEIS INJETADAS PELO SISTEMA BASE 44:
+[PERSONAGEM POV]: ${story.current_pov_name || 'narrador onisciente'}
+[RESPOSTAS DOS SUPERAGENTES (REACÕES/MEMÓRIAS)]:
+${dadosAgentesEmCena}
+[CLIMA/ANO/LINHA TEMPORAL]: Universo "${universe.name}" | ${story.data_hora_atual || story.era_inicial || '?'} | Cenário: ${story.cenario_atual || '?'} | Clima: ${story.clima_atual || story.clima_inicial || '?'} | Linha do tempo: ${story.timeline_summary || 'início'}
+[ESTADO ATUAL]: ${estado}
+[CONTEXTO DO ORQUESTRADOR]: ${params.contexto_imediato_a_repassar || ''}${conhecimento}
 
-Escreva o próximo bloco narrativo em português e atualize os dados. Em "memorias_registradas", gere a memória subjetiva do evento para CADA personagem presente ou afetado na cena (cada um só percebe o que viveu — perspectivas isoladas).`,
+[TEXTO DO USUÁRIO]:
+"${texto}"
+
+No campo "prosa", escreva a continuação literária direta, em português. Sem introduções, sem avisos sistêmicos. Apenas a pura narrativa. Em "memorias_registradas", gere a memória subjetiva do evento para CADA personagem presente ou afetado na cena (cada um só percebe o que viveu — perspectivas isoladas).`,
       response_json_schema: {
         type: 'object',
         properties: {
