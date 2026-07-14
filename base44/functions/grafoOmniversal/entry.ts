@@ -263,11 +263,108 @@ REGRAS TÉCNICAS OBRIGATÓRIAS:
   return render;
 }
 
+// ----- Físico de Dados 3D: calcula os parâmetros do motor de física esférica do Omniverso -----
+async function fisicaDados3D(sdk) {
+  const [nos, arestas, universos] = await Promise.all([
+    sdk.entities.GraphNode.list(undefined, 500),
+    sdk.entities.GraphEdge.list(undefined, 1000),
+    sdk.entities.Universe.list(undefined, 100)
+  ]);
+  if (!nos.length) return { engine_settings: null, nodes_physics_metadata: [], nos: [], arestas: [] };
+  const grau = {};
+  for (const a of arestas) {
+    grau[a.origem] = (grau[a.origem] || 0) + 1;
+    grau[a.destino] = (grau[a.destino] || 0) + 1;
+  }
+  const nomeUni = new Map(universos.map((u) => [u.id, u.name]));
+  const inventario = nos.map((n) => `${n.node_id} [${n.tipo}] "${n.rotulo}" | universo: ${nomeUni.get(n.universe_id) || '?'} | conexões: ${grau[n.node_id] || 0} | estado: ${n.estado_atual || '?'}`).join('\n');
+  const mapaArestas = arestas.map((a) => `${a.origem} -> ${a.tipo_de_relacao} -> ${a.destino}`).join('; ');
+
+  const res = await sdk.integrations.Core.InvokeLLM({
+    prompt: `Você é o Físico de Dados 3D do ecossistema Base 44. Sua função é receber o JSON com os nós e arestas do Omniverso narrativo e calcular os parâmetros do motor de física (Force-Directed Graph 3D) para a interface do usuário.
+
+O usuário solicitou uma visualização onde o universo se forma como uma "esfera tridimensional" regida por "forças centrípetas".
+
+DIRETRIZES DE FÍSICA E TOPOLOGIA:
+1. Topologia Esférica: Os nós fundamentais (Gênesis, Leis Universais) devem formar o núcleo de alta densidade no centro exato da matriz (0,0,0).
+2. Força Centrípeta Narrativa: Nós com mais conexões (Personagens Principais, Locais muito visitados) devem sofrer uma atração gravitacional forte para o centro (gravitational_weight alto, orbital_layer Core). Nós periféricos (NPCs irrelevantes, locais não visitados recentemente) devem orbitar na superfície da esfera (orbital_layer Surface).
+3. Repulsão Multiversal (Anti-Colisão): Universos diferentes (Gênesis A e B) devem agir como pólos magnéticos opostos na mesma esfera, orbitando em hemisférios diferentes até que um "Nó Nexus" os puxe para o equador da esfera.
+
+REGRAS TÉCNICAS:
+- Em "id", use EXCLUSIVAMENTE node_ids do inventário abaixo.
+- "gravitational_weight": número de 1 a 10 (10 = centro exato da esfera).
+- "color_intensity": cor HEX (ou rgba) mais intensa/brilhante quanto maior a densidade de conexões do nó.
+
+[GRAFO ATUAL PARA PROCESSAMENTO — NÓS]:
+${inventario}
+[GRAFO ATUAL PARA PROCESSAMENTO — ARESTAS]:
+${mapaArestas || 'nenhuma'}`,
+    response_json_schema: {
+      type: 'object',
+      properties: {
+        engine_settings: {
+          type: 'object',
+          properties: {
+            dimensions: { type: 'number' },
+            force_centripetal_strength: { type: 'number', description: 'Ex: 0.8' },
+            force_charge_repulsion: { type: 'number', description: 'Ex: -150' },
+            layout_mode: { type: 'string', description: 'sphere_cluster' }
+          },
+          required: ['dimensions', 'force_centripetal_strength', 'force_charge_repulsion', 'layout_mode']
+        },
+        nodes_physics_metadata: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              id: { type: 'string' },
+              gravitational_weight: { type: 'number', description: '1 a 10 (10 fica no centro da esfera)' },
+              orbital_layer: { type: 'string', enum: ['Core', 'Mantle', 'Surface'] },
+              color_intensity: { type: 'string', description: 'Hex ou rgba() baseado na densidade' }
+            },
+            required: ['id', 'gravitational_weight', 'orbital_layer', 'color_intensity']
+          }
+        }
+      },
+      required: ['engine_settings', 'nodes_physics_metadata']
+    }
+  });
+
+  const validos = new Set(nos.map((n) => n.node_id));
+  const meta = new Map((res.nodes_physics_metadata || []).filter((m) => validos.has(m.id)).map((m) => [m.id, m]));
+  const metadata = nos.map((n) => {
+    const g = grau[n.node_id] || 0;
+    return meta.get(n.node_id) || {
+      id: n.node_id,
+      gravitational_weight: Math.min(10, 1 + g),
+      orbital_layer: g >= 5 ? 'Core' : g >= 2 ? 'Mantle' : 'Surface',
+      color_intensity: n.cor_grafo || '#a1a1aa'
+    };
+  });
+  return {
+    engine_settings: {
+      dimensions: 3,
+      force_centripetal_strength: 0.8,
+      force_charge_repulsion: -150,
+      layout_mode: 'sphere_cluster',
+      ...(res.engine_settings || {})
+    },
+    nodes_physics_metadata: metadata,
+    nos,
+    arestas
+  };
+}
+
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
     const sdk = base44.asServiceRole;
     const { acao, universeId, dadosBrutos, storyId } = await req.json();
+
+    if (acao === 'fisica3d') {
+      const r = await fisicaDados3D(sdk);
+      return Response.json(r);
+    }
 
     if (acao === 'arquiteto') {
       if (!universeId || !dadosBrutos) return Response.json({ error: 'universeId e dadosBrutos são obrigatórios' }, { status: 400 });

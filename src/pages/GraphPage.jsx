@@ -2,14 +2,23 @@ import React, { useState, useMemo } from "react";
 import { useParams, Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { base44 } from "@/api/base44Client";
-import { ArrowLeft, Loader2 } from "lucide-react";
+import { ArrowLeft, Loader2, Globe, Share2 } from "lucide-react";
 import ForceGraph from "@/components/graph/ForceGraph";
+import SphereGraph3D from "@/components/graph/SphereGraph3D";
 import NodeDetails from "@/components/graph/NodeDetails";
 import { TIPO_CORES } from "@/components/graph/graphUtils";
 
 export default function GraphPage() {
   const { universeId } = useParams();
   const [selected, setSelected] = useState(null);
+  const [modo3d, setModo3d] = useState(false);
+
+  const { data: fisica, isLoading: loadingFisica } = useQuery({
+    queryKey: ["fisica3d"],
+    queryFn: async () => (await base44.functions.invoke("grafoOmniversal", { acao: "fisica3d" })).data,
+    enabled: modo3d,
+    staleTime: 5 * 60 * 1000,
+  });
 
   const { data: universe } = useQuery({
     queryKey: ["universe", universeId],
@@ -52,6 +61,13 @@ export default function GraphPage() {
               </p>
             </div>
           </div>
+          <button
+            onClick={() => setModo3d((v) => !v)}
+            className={`shrink-0 flex items-center gap-1.5 text-[11px] px-3 py-1.5 rounded-full border transition-colors ${modo3d ? "border-emerald-500/50 text-emerald-300 bg-emerald-500/10" : "border-zinc-800 text-zinc-400 hover:text-zinc-200"}`}
+          >
+            {modo3d ? <Share2 className="w-3.5 h-3.5" /> : <Globe className="w-3.5 h-3.5" />}
+            {modo3d ? "Grafo 2D" : "Esfera 3D"}
+          </button>
           <div className="hidden md:flex items-center gap-3">
             {legenda.map(([tipo, cor]) => (
               <span key={tipo} className="flex items-center gap-1.5 text-[10px] text-zinc-500">
@@ -62,7 +78,16 @@ export default function GraphPage() {
         </div>
       </header>
       <div className="flex-1 relative">
-        {isLoading ? (
+        {modo3d ? (
+          loadingFisica || !fisica ? (
+            <div className="h-full flex flex-col items-center justify-center gap-3 text-zinc-500">
+              <Loader2 className="w-5 h-5 animate-spin" />
+              <p className="text-xs">O Físico de Dados 3D está calculando as forças centrípetas do Omniverso...</p>
+            </div>
+          ) : (
+            <SphereGraph3D nos={fisica.nos || []} arestas={fisica.arestas || []} metadata={fisica.nodes_physics_metadata || []} onSelect={setSelected} />
+          )
+        ) : isLoading ? (
           <div className="h-full flex items-center justify-center text-zinc-500">
             <Loader2 className="w-5 h-5 animate-spin" />
           </div>
@@ -73,7 +98,7 @@ export default function GraphPage() {
         ) : (
           <ForceGraph nodes={nodes} edges={edges} selectedId={selected?.node_id} onSelect={setSelected} render={render} />
         )}
-        <NodeDetails node={selected} edges={edges} nodes={nodes} onClose={() => setSelected(null)} />
+        <NodeDetails node={selected} edges={modo3d && fisica ? fisica.arestas : edges} nodes={modo3d && fisica ? fisica.nos : nodes} onClose={() => setSelected(null)} />
       </div>
     </div>
   );
