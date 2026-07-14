@@ -1,0 +1,31 @@
+{
+  "name": "CharacterMemory",
+  "type": "object",
+  "properties": {
+    "character_id": {
+      "type": "string",
+      "description": "Chave de identifica\u00e7\u00e3o do personagem (isolamento absoluto)"
+    },
+    "character_name": {
+      "type": "string",
+      "description": "Nome do personagem dono da mem\u00f3ria"
+    },
+    "superagente_id": {
+      "type": "string",
+      "description": "Superagente Hospedeiro custodiante"
+    },
+    "story_id": {
+      "type": "string",
+      "description": "Hist\u00f3ria onde o evento ocorreu"
+    },
+    "content": {
+      "type": "string",
+      "description": "Mem\u00f3ria subjetiva do evento, na perspectiva do personagem"
+    }
+  },
+  "required": [
+    "character_id",
+    "character_name",
+    "content"
+  ]
+}

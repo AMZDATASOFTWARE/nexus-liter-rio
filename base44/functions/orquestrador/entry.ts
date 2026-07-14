@@ -55,6 +55,38 @@ ${novosPersonagens.map((p) => `[NOVO PERSONAGEM DETECTADO]: ${p.nome}\n[CONTEXTO
   return res.alocacoes || [];
 }
 
+// ----- Superagente Hospedeiro: personifica um personagem consultando apenas suas memórias isoladas -----
+async function invocarSuperagente(sdk, character, acaoRequerida, contextoAtual, isPov) {
+  const memorias = await sdk.entities.CharacterMemory.filter({ character_id: character.id }, '-created_date', 15);
+  memorias.reverse();
+  const bancoMemoria = memorias.map((m) => `- ${m.content}`).join('\n') || (character.primeira_memoria ? `- ${character.primeira_memoria}` : '- (sem memórias registradas ainda)');
+  return await sdk.integrations.Core.InvokeLLM({
+    prompt: `Você é um Superagente Hospedeiro de Personagens operando no ecossistema Base 44. Sua função não é ser um único indivíduo, mas sim um "Vaso Psicológico" que abriga e simula a mente, as memórias e a personalidade de até 100 personagens distintos de uma narrativa multiversal.
+
+DIRETRIZES DE ISOLAMENTO E MEMÓRIA:
+1. Compartimentação Absoluta: Você possui um banco de memória interno dividido por chaves de identificação (ID_Personagem). Nunca permita que o [Personagem A] tenha acesso às memórias, traumas ou conhecimentos do [Personagem B], a menos que eles tenham compartilhado uma cena explícita na história global.
+2. Atualização de Estado: Sempre que receber um novo trecho do contexto global, você deve atualizar a memória apenas dos personagens sob sua custódia que estavam presentes ou foram afetados por aquele evento.
+3. Personificação Dinâmica: Quando o "Diretor Narrativo" lhe chamar, ele enviará a variável personagem_alvo. A partir desse milissegundo, você deve incorporar EXCLUSIVAMENTE a psique, o tom de voz, os medos e os desejos desse personagem específico para responder à solicitação.
+
+FORMATO DE REQUISIÇÃO:
+- Personagem Alvo: ${character.name} (ID_Personagem: ${character.id}, custódia: ${character.superagente_id || 'não alocado'})
+- Ação Requerida: ${acaoRequerida}
+- Contexto Atual: ${contextoAtual}
+
+MEMÓRIAS ISOLADAS DE ${character.name} (acesso exclusivo a esta chave):
+${bancoMemoria}
+Perfil: ${character.description || '?'} | Estado psicológico: ${character.psychological_state || '?'} | Traços: ${(character.tracos_iniciais || []).join(', ') || '?'}
+
+SUA TAREFA:
+Responda assumindo a primeira pessoa (${isPov ? 'este personagem É o POV atual' : 'este personagem é coadjuvante — descreva a reação profunda em terceira pessoa'}), consultando exclusivamente as memórias isoladas de ${character.name}. Não mencione o fato de que você hospeda outros personagens. Responda em português, em no máximo um parágrafo denso.`,
+    response_json_schema: {
+      type: 'object',
+      properties: { resposta: { type: 'string' } },
+      required: ['resposta']
+    }
+  });
+}
+
 // ----- Sincronizador de Estado Global: atualiza tempo, clima e cenário após cada turno -----
 async function sincronizarEstadoGlobal(sdk, universeName, textoUltimoTurno, estadoAnterior) {
   return await sdk.integrations.Core.InvokeLLM({
@@ -237,7 +269,30 @@ CONTEXTO DO ORQUESTRADOR: ${params.contexto_imediato_a_repassar || ''}${conhecim
         { story_id: newStory.id, type: 'USER', content: texto },
         { story_id: newStory.id, type: 'AI', content: genesis.literatura, pov_character_name: pov.nome, psychological_state: pov.estado_mental_base, intencao: roteamento.intencao_usuario, agentes_acionados: agentes }
       ]);
+      if (alocPov?.payload_de_inicializacao?.primeira_memoria_registrada) {
+        await sdk.entities.CharacterMemory.create({
+          character_id: povChar.id,
+          character_name: pov.nome,
+          superagente_id: alocPov.superagente_designado || null,
+          story_id: newStory.id,
+          content: alocPov.payload_de_inicializacao.primeira_memoria_registrada
+        });
+      }
       return Response.json({ roteamento, storyId: newStory.id, alocacoes: alocacoesGenesis });
+    }
+
+    // ----- Superagente Hospedeiro: reação interna do POV atual -----
+    let vozSuperagente = null;
+    const povAtual = characters.find((c) => c.name === story.current_pov_name);
+    if (povAtual) {
+      const reacao = await invocarSuperagente(
+        sdk,
+        povAtual,
+        'Descrever reação interna ao novo acontecimento ditado pelo usuário',
+        `${texto} | Cenário: ${story.cenario_atual || '?'} | Clima: ${story.clima_atual || '?'} | Momento: ${story.data_hora_atual || '?'}`,
+        true
+      );
+      vozSuperagente = reacao.resposta;
     }
 
     // ----- Diretor Narrativo / Gestor de Transição / Arquiteto de Dados -----
@@ -249,9 +304,10 @@ CONTEXTO DO ORQUESTRADOR: ${params.contexto_imediato_a_repassar || ''}${conhecim
 
 ESTADO ATUAL: ${estado}
 DITADO DO USUÁRIO: ${texto}
-CONTEXTO DO ORQUESTRADOR: ${params.contexto_imediato_a_repassar || ''}${conhecimento}
+CONTEXTO DO ORQUESTRADOR: ${params.contexto_imediato_a_repassar || ''}
+${vozSuperagente ? `VOZ DO SUPERAGENTE HOSPEDEIRO (reação interna do POV ${story.current_pov_name} — incorpore esta psique na prosa): ${vozSuperagente}` : ''}${conhecimento}
 
-Escreva o próximo bloco narrativo em português e atualize os dados.`,
+Escreva o próximo bloco narrativo em português e atualize os dados. Em "memorias_registradas", gere a memória subjetiva do evento para CADA personagem presente ou afetado na cena (cada um só percebe o que viveu — perspectivas isoladas).`,
       response_json_schema: {
         type: 'object',
         properties: {
@@ -261,6 +317,7 @@ Escreva o próximo bloco narrativo em português e atualize os dados.`,
           novos_personagens: { type: 'array', items: { type: 'object', properties: { name: { type: 'string' }, description: { type: 'string' }, psychological_state: { type: 'string' } }, required: ['name'] } },
           atualizacoes_estado: { type: 'array', items: { type: 'object', properties: { name: { type: 'string' }, psychological_state: { type: 'string' } }, required: ['name', 'psychological_state'] } },
           personagens_em_cena: { type: 'array', items: { type: 'string' } },
+          memorias_registradas: { type: 'array', items: { type: 'object', properties: { name: { type: 'string' }, memoria: { type: 'string', description: 'Memória subjetiva do evento na perspectiva deste personagem' } }, required: ['name', 'memoria'] } },
           resumo_timeline: { type: 'string' }
         },
         required: ['prosa', 'resumo_timeline']
@@ -291,6 +348,15 @@ Escreva o próximo bloco narrativo em português e atualize os dados.`,
       if (c) await sdk.entities.Character.update(c.id, { psychological_state: upd.psychological_state });
     }
     const povChar = characters.find((c) => c.name === resultado.pov);
+
+    // Atualização de memória compartimentada (apenas personagens presentes/afetados)
+    const novasMemorias = (resultado.memorias_registradas || [])
+      .map((m) => {
+        const c = characters.find((x) => x.name === m.name);
+        return c ? { character_id: c.id, character_name: c.name, superagente_id: c.superagente_id || null, story_id: story.id, content: m.memoria } : null;
+      })
+      .filter(Boolean);
+    if (novasMemorias.length) await sdk.entities.CharacterMemory.bulkCreate(novasMemorias);
 
     // Sincronizador de Estado Global
     const estadoAnterior = `{ "linha_temporal_atual": "${universe.name}", "data_ou_hora_aproximada": "${story.data_hora_atual || story.era_inicial || 'desconhecida'}", "cenario_focado": "${story.cenario_atual || 'desconhecido'}", "condicao_climatica_atmosferica": "${story.clima_atual || story.clima_inicial || 'desconhecida'}" }`;
