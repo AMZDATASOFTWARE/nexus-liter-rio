@@ -1,16 +1,17 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.38';
 
-// ----- Cobrador de Tributos: custo em Nexus Tokens por intenção do turno -----
-const CUSTO_POR_INTENCAO = { Continuar: 50, Mudar_POV: 50, Criar_Nova_Historia: 100, Ramificar: 150, Colidir_Genesis: 150 };
+// ----- Cobrador de Tributos: 1 Crédito de Mensagem por turno + Créditos de Integração conforme a intenção -----
+const CUSTO_INTEGRACAO_POR_INTENCAO = { Continuar: 5, Mudar_POV: 5, Criar_Nova_Historia: 10, Ramificar: 15, Colidir_Genesis: 15 };
 async function cobrarTributo(sdk, wallet, intencao) {
   if (!wallet) return null;
-  const custo = CUSTO_POR_INTENCAO[intencao] || 50;
-  const saldoRestante = (wallet.nexus_tokens || 0) - custo;
+  const custoIntegracao = CUSTO_INTEGRACAO_POR_INTENCAO[intencao] || 5;
+  const saldoMensagem = (wallet.creditos_mensagem || 0) - 1;
+  const saldoIntegracao = (wallet.creditos_integracao || 0) - custoIntegracao;
   await sdk.entities.UserWallet.update(wallet.id, {
-    nexus_tokens: saldoRestante,
-    total_gasto_historico: (wallet.total_gasto_historico || 0) + custo
+    creditos_mensagem: saldoMensagem,
+    creditos_integracao: saldoIntegracao
   });
-  return { custo, saldo_restante: saldoRestante };
+  return { custo_mensagem: 1, custo_integracao: custoIntegracao, saldo_mensagem: saldoMensagem, saldo_integracao: saldoIntegracao };
 }
 
 // ----- Alocador de Personagens: designa um Superagente Hospedeiro para cada novo personagem -----
@@ -438,9 +439,9 @@ Deno.serve(async (req) => {
       const user = await base44.auth.me();
       if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
       const carteiras = await sdk.entities.UserWallet.filter({ user_id: user.id });
-      wallet = carteiras[0] || await sdk.entities.UserWallet.create({ user_id: user.id, nexus_tokens: 10000, total_gasto_historico: 0 });
-      if ((wallet.nexus_tokens || 0) <= 0) {
-        return Response.json({ error: 'Sua energia multiversal acabou. Adquira mais Nexus Tokens ou ative o modo BYOK.' }, { status: 402 });
+      wallet = carteiras[0] || await sdk.entities.UserWallet.create({ user_id: user.id, creditos_mensagem: 5, creditos_integracao: 20 });
+      if ((wallet.creditos_mensagem || 0) < 1 || (wallet.creditos_integracao || 0) < 1) {
+        return Response.json({ error: 'Seus créditos acabaram. Recarregue no Mercado Multiversal ou ative o modo BYOK.' }, { status: 402 });
       }
     }
 

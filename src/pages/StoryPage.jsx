@@ -3,6 +3,7 @@ import { useParams, useNavigate, Link } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { base44 } from "@/api/base44Client";
 import { ArrowLeft, Loader2, Users, Network, Terminal, BookOpen, Coins } from "lucide-react";
+import { useToast } from "@/components/ui/use-toast";
 import TokenStoreModal from "@/components/billing/TokenStoreModal";
 import CommandManagerSheet from "@/components/narrative/CommandManagerSheet";
 import ChapterPanel from "@/components/narrative/ChapterPanel";
@@ -24,6 +25,7 @@ export default function StoryPage() {
   const [capitulo, setCapitulo] = useState(null);
   const [showStore, setShowStore] = useState(false);
   const [compilando, setCompilando] = useState(false);
+  const { toast } = useToast();
 
   const compilarCapitulo = async () => {
     setCompilando(true);
@@ -75,6 +77,16 @@ export default function StoryPage() {
         queryClient.invalidateQueries({ queryKey: ["story", id] });
         queryClient.invalidateQueries({ queryKey: ["characters", story?.universe_id] });
       }
+    } catch (e) {
+      const status = e.response?.status;
+      const msg = e.response?.data?.error || e.message;
+      if (status === 402) setShowStore(true);
+      toast({
+        title: status === 402 ? "Créditos insuficientes" : "A narrativa falhou neste turno",
+        description: msg,
+        variant: "destructive",
+        duration: 8000,
+      });
     } finally {
       setSending(false);
     }
