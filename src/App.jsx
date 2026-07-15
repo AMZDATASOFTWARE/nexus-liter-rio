@@ -44,7 +44,7 @@ const AuthenticatedApp = () => {
       <Route path="/historia/:id" element={<StoryPage />} />
       <Route path="/conhecimento" element={<KnowledgePage />} />
       <Route path="/grafo/:universeId" element={<GraphPage />} />
-      <Route path="/workspace/:storyId" element={<WorkspacePage />} />
+      <Route path="/workspace/:id" element={<WorkspacePage />} />
       <Route path="*" element={<PageNotFound />} />
     </Routes>
   );

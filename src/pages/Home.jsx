@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { base44 } from "@/api/base44Client";
 import { motion } from "framer-motion";
-import { Sparkles, BookOpen, ArrowRight, BookMarked } from "lucide-react";
+import { Sparkles, BookOpen, LayoutDashboard, BookMarked } from "lucide-react";
 import GlitchWrapper from "@/components/GlitchWrapper";
 import GlitchSound from "@/components/GlitchSound";
 
@@ -61,7 +61,7 @@ export default function Home() {
           {stories.map((s, i) => (
             <motion.div key={s.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}>
               <Link
-                to={`/historia/${s.id}`}
+                to={`/workspace/${s.id}`}
                 className="group flex items-center justify-between rounded-2xl border border-zinc-800/80 bg-zinc-900/40 px-6 py-5 hover:border-violet-500/30 hover:bg-zinc-900/70 transition-all"
               >
                 <div className="flex items-center gap-4 min-w-0">
@@ -73,7 +73,7 @@ export default function Home() {
                     </p>
                   </div>
                 </div>
-                <ArrowRight className="w-4 h-4 text-zinc-700 group-hover:text-violet-300 group-hover:translate-x-1 transition-all shrink-0" />
+                <LayoutDashboard className="w-4 h-4 text-zinc-700 group-hover:text-violet-300 group-hover:translate-x-1 transition-all shrink-0" />
               </Link>
             </motion.div>
           ))}

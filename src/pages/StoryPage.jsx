@@ -16,6 +16,7 @@ import ByokPromptPanel from "@/components/narrative/ByokPromptPanel";
 export default function StoryPage({ storyIdProp }) {
   const params = useParams();
   const id = storyIdProp || params.id;
+  const isEmbedded = !!storyIdProp;
   const isNew = id === "nova";
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -95,7 +96,7 @@ export default function StoryPage({ storyIdProp }) {
   };
 
   return (
-    <div className="min-h-screen bg-[#08080f] text-zinc-100 flex flex-col">
+    <div className={`${isEmbedded ? "h-full overflow-y-auto" : "min-h-screen"} bg-[#08080f] text-zinc-100 flex flex-col`}>
       <header className="sticky top-0 z-20 backdrop-blur-xl bg-[#08080f]/80 border-b border-zinc-900">
         <div className="max-w-4xl mx-auto px-5 py-4 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3 min-w-0">
@@ -109,7 +110,7 @@ export default function StoryPage({ storyIdProp }) {
               )}
             </div>
           </div>
-          {!isNew && story?.universe_id && (
+          {!isNew && !isEmbedded && story?.universe_id && (
             <Link to={`/grafo/${story.universe_id}`} className="shrink-0 p-2 rounded-lg border border-zinc-800 text-zinc-500 hover:text-emerald-300 hover:border-emerald-500/40 transition-colors" title="Megagrafo do universo">
               <Network className="w-4 h-4" />
             </Link>
@@ -164,7 +165,7 @@ export default function StoryPage({ storyIdProp }) {
         </div>
       )}
 
-      <div className="fixed bottom-0 inset-x-0 z-20 bg-gradient-to-t from-[#08080f] via-[#08080f]/95 to-transparent pt-10 pb-5 px-5">
+      <div className={`${isEmbedded ? "sticky bottom-0" : "fixed bottom-0 inset-x-0"} z-20 bg-gradient-to-t from-[#08080f] via-[#08080f]/95 to-transparent pt-10 pb-5 px-5`}>
         <div className="max-w-3xl mx-auto">
           <Composer onSend={send} sending={sending} allowByok={!isNew} storyId={isNew ? null : id} placeholder={isNew ? "Dite o início da história..." : "Continue a narrativa, mude o POV ou introduza algo novo..."} />
         </div>
