@@ -189,12 +189,28 @@ ${ultimosBlocos}`,
       acaoBruta = criacao.acao_bruta_de_introducao;
     }
 
+    // ----- Metrônomo do Diretor: ritmo narrativo escolhido pelo autor (fallback equilibrado) -----
+    const ritmoAtual = (story.ritmo_narrativo && Object.keys(story.ritmo_narrativo).length)
+      ? story.ritmo_narrativo
+      : { peso_acao: 25, peso_dialogo: 25, peso_introspeccao: 25, peso_ambientacao: 25 };
+
     // ----- Diretor Narrativo: transforma a intenção bruta em prosa literária -----
     const direcao = await sdk.integrations.Core.InvokeLLM({
       prompt: `O personagem ${personagemFoco.name} decidiu: '${acaoBruta}'. Escreva isso como o próximo parágrafo de um livro de ficção. Atualize o cenário e faça o texto fluir. Respeite as regras do universo.
 
+O METRÔNOMO DO DIRETOR: A prosa DEVE refletir estritamente estes pesos matemáticos escolhidos pelo autor:
+- [AÇÃO: ${ritmoAtual.peso_acao}%]: Se for alto, use verbos cinéticos, frases curtas e ritmo acelerado.
+- [DIÁLOGO: ${ritmoAtual.peso_dialogo}%]: Se for alto, foque em interações verbais.
+- [INTROSPECÇÃO: ${ritmoAtual.peso_introspeccao}%]: Se for alto, mergulhe na mente do personagem em foco.
+- [AMBIENTAÇÃO: ${ritmoAtual.peso_ambientacao}%]: Se for alto, gaste parágrafos detalhando a estética e textura do mundo.
+
+SINCRONIZADOR DE ESTADO GLOBAL: após escrever a prosa, atualize as variáveis de ambiente do mundo. Aplique o decurso natural do tempo em "momento_atualizado" (minutos, horas ou mais, conforme a cena) — o mundo NÃO pode ficar congelado no tempo. Registre também em "notas_grafo" instruções curtas para o Arquiteto de Grafos sobre o cenário visual da interface.
+
+EXPANSÃO DE LORE: se a prosa mencionar personagens INÉDITOS (que não estejam entre os presentes listados), liste-os em "novos_personagens" com descrição e estado psicológico para cadastro no sistema.
+
 [REGRAS DO UNIVERSO "${universe.name}"]: ${universe.rules || 'não definidas — assuma física realista'}
 [CENA ATUAL]: Cenário: ${story.cenario_atual || '?'} | Clima: ${story.clima_atual || '?'} | Momento: ${story.data_hora_atual || '?'} | Presentes: ${(story.characters_in_scene || []).join(', ') || 'ninguém'}
+[PERSONAGENS JÁ CADASTRADOS NO SISTEMA]: ${characters.map((c) => c.name).join(', ') || 'nenhum'}
 [ÚLTIMOS 3 BLOCOS NARRATIVOS]:
 ${ultimosBlocos}
 
@@ -205,6 +221,16 @@ Em "prosa", escreva apenas o parágrafo literário, em português, sem avisos si
           prosa: { type: 'string' },
           cenario_atualizado: { type: 'string' },
           clima_atualizado: { type: 'string' },
+          momento_atualizado: { type: 'string', description: 'Data/hora aproximada da narrativa após o decurso natural do tempo neste turno' },
+          notas_grafo: { type: 'string', description: 'Instruções curtas para o Arquiteto de Grafos sobre o cenário visual' },
+          novos_personagens: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: { name: { type: 'string' }, description: { type: 'string' }, psychological_state: { type: 'string' } },
+              required: ['name']
+            }
+          },
           memorias_registradas: {
             type: 'array',
             items: {
@@ -214,12 +240,26 @@ Em "prosa", escreva apenas o parágrafo literário, em português, sem avisos si
             }
           }
         },
-        required: ['prosa', 'memorias_registradas']
+        required: ['prosa', 'momento_atualizado', 'memorias_registradas']
       }
     });
 
+    // ----- Expansão de Lore: cadastra entidades inéditas mencionadas pela prosa autônoma -----
+    let elencoAtual = novoPersonagem ? characters.concat([novoPersonagem]) : characters;
+    const nomesExistentes = new Set(elencoAtual.map((c) => c.name));
+    const ineditos = (direcao.novos_personagens || []).filter((p) => !nomesExistentes.has(p.name));
+    if (ineditos.length) {
+      const criados = await sdk.entities.Character.bulkCreate(ineditos.map((p) => ({
+        universe_id: story.universe_id,
+        name: p.name,
+        description: p.description || null,
+        psychological_state: p.psychological_state || null,
+        motivo_alocacao: 'Surgiu na Simulação Autônoma (Mundo Vivo)'
+      })));
+      elencoAtual = elencoAtual.concat(criados);
+    }
+
     // ----- Atualização de Memória: personagem que agiu + presentes na cena -----
-    const elencoAtual = novoPersonagem ? characters.concat([novoPersonagem]) : characters;
     const memoriasNovas = (direcao.memorias_registradas || [])
       .map((m) => {
         const c = elencoAtual.find((x) => x.name === m.name);
@@ -239,18 +279,25 @@ Em "prosa", escreva apenas o parágrafo literário, em português, sem avisos si
       agentes_acionados: ['Motor_do_Relogio', `Superagente_${personagemFoco.name}`, 'Diretor_Narrativo']
     });
 
-    // ----- Registra a iniciativa autônoma e o cenário atualizado na história -----
+    // ----- Sincronizador de Estado Global: tempo, clima e espaço avançam mesmo sem input humano -----
+    const momentoAtual = direcao.momento_atualizado || story.data_hora_atual;
+    const cenarioAtual = direcao.cenario_atualizado || story.cenario_atual;
+    const climaAtual = direcao.clima_atualizado || story.clima_atual;
     await sdk.entities.Story.update(story.id, {
       personagem_em_foco_autonomo: personagemFoco.id,
-      cenario_atual: direcao.cenario_atualizado || story.cenario_atual,
-      clima_atual: direcao.clima_atualizado || story.clima_atual
+      data_hora_atual: momentoAtual,
+      cenario_atual: cenarioAtual,
+      clima_atual: climaAtual,
+      notas_grafo: direcao.notas_grafo || story.notas_grafo
     });
 
-    // ----- Conecta a ação autônoma ao Megagrafo -----
-    const grafo = await arquitetoDeGrafos(sdk, story.universe_id, `PROSA AUTÔNOMA DO TURNO: ${direcao.prosa}
-PERSONAGEM QUE AGIU: ${personagemFoco.name} (ação bruta: ${acaoBruta})
+    // ----- Conecta a ação autônoma ao Megagrafo (payload idêntico ao fluxo manual) -----
+    const grafo = await arquitetoDeGrafos(sdk, story.universe_id, `PROSA DO TURNO: ${direcao.prosa}
+REAÇÕES DOS SUPERAGENTES: [${personagemFoco.name} — iniciativa autônoma]: ${acaoBruta}
 MEMÓRIAS REGISTRADAS: ${(direcao.memorias_registradas || []).map((m) => `${m.name}: ${m.memoria}`).join(' | ') || 'nenhuma'}
-ESTADO GLOBAL ATUAL: momento "${story.data_hora_atual}", cenário "${direcao.cenario_atualizado || story.cenario_atual}", clima "${direcao.clima_atualizado || story.clima_atual}"`);
+ESTADO GLOBAL ATUAL: momento "${momentoAtual}", cenário "${cenarioAtual}", clima "${climaAtual}"
+NOTAS DO SINCRONIZADOR PARA O GRAFO: ${direcao.notas_grafo || 'nenhuma'}
+PERSONAGENS E AGENTES BASE44: ${elencoAtual.map((c) => `${c.name} → ${c.superagente_id || '?'}`).join('; ')}`);
 
     // ----- Atualiza a câmera e o zoom do Grafo na UI -----
     const render = await orquestradorRenderizacao(sdk, story, universe);
