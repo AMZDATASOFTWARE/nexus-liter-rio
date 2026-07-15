@@ -4,6 +4,18 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.38';
 const CUSTO_MENSAGEM_AUTONOMO = 1;
 const CUSTO_INTEGRACAO_AUTONOMO = 2;
 
+// ----- Arquiteto de Dados Relacionais Omniversal (delegado à função grafoOmniversal) -----
+async function arquitetoDeGrafos(sdk, universeId, dadosBrutos) {
+  const r = await sdk.functions.invoke('grafoOmniversal', { acao: 'arquiteto', universeId, dadosBrutos });
+  return r?.data ?? r;
+}
+
+// ----- Orquestrador de Renderização Visual (delegado à função grafoOmniversal) -----
+async function orquestradorRenderizacao(sdk, story, universe) {
+  const r = await sdk.functions.invoke('grafoOmniversal', { acao: 'render', storyId: story.id });
+  return (r?.data ?? r)?.render ?? null;
+}
+
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
@@ -234,6 +246,15 @@ Em "prosa", escreva apenas o parágrafo literário, em português, sem avisos si
       clima_atual: direcao.clima_atualizado || story.clima_atual
     });
 
+    // ----- Conecta a ação autônoma ao Megagrafo -----
+    const grafo = await arquitetoDeGrafos(sdk, story.universe_id, `PROSA AUTÔNOMA DO TURNO: ${direcao.prosa}
+PERSONAGEM QUE AGIU: ${personagemFoco.name} (ação bruta: ${acaoBruta})
+MEMÓRIAS REGISTRADAS: ${(direcao.memorias_registradas || []).map((m) => `${m.name}: ${m.memoria}`).join(' | ') || 'nenhuma'}
+ESTADO GLOBAL ATUAL: momento "${story.data_hora_atual}", cenário "${direcao.cenario_atualizado || story.cenario_atual}", clima "${direcao.clima_atualizado || story.clima_atual}"`);
+
+    // ----- Atualiza a câmera e o zoom do Grafo na UI -----
+    const render = await orquestradorRenderizacao(sdk, story, universe);
+
     // ----- Cobrança do turno autônomo -----
     let tributo = null;
     if (isAdmin) {
@@ -256,6 +277,8 @@ Em "prosa", escreva apenas o parágrafo literário, em português, sem avisos si
       acaoBruta,
       bloco: { id: bloco.id, type: bloco.type, prosa: direcao.prosa, pov: personagemFoco.name },
       memoriasRegistradas: memoriasNovas.length,
+      grafo,
+      render,
       tributo
     });
   } catch (error) {
