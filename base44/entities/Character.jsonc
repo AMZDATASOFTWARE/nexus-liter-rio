@@ -81,6 +81,23 @@
     "estilo_pensamento": {
       "type": "string",
       "description": "Como a mente funciona (Ex: Anal\u00edtico e frio, Emocional e ca\u00f3tico, Paran\u00f3ico)"
+    },
+    "estado_simulacao": {
+      "type": "string",
+      "enum": [
+        "ocioso",
+        "interagindo",
+        "viajando",
+        "investigando"
+      ],
+      "description": "Status de background"
+    },
+    "ultima_interacao_com": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "IDs dos personagens com quem conversou recentemente"
     }
   },
   "required": [
