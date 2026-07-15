@@ -73,7 +73,7 @@ export default function GraphPage({ universeIdProp }) {
   }, [nodes]);
 
   return (
-    <div className="h-screen bg-[#08080f] text-zinc-100 flex flex-col overflow-hidden">
+    <div className={`${universeIdProp ? "h-full" : "h-screen"} bg-[#08080f] text-zinc-100 flex flex-col overflow-hidden`}>
       <header className="shrink-0 backdrop-blur-xl bg-[#08080f]/80 border-b border-zinc-900">
         <div className="px-5 py-4 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3 min-w-0">
