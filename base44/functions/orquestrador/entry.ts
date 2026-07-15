@@ -452,13 +452,18 @@ Deno.serve(async (req) => {
 
     // ----- Cobrador de Tributos: turnos nativos (sem BYOK) consomem Nexus Tokens -----
     let wallet = null;
+    let isAdmin = false;
     if (!modoByok) {
       const user = await base44.auth.me();
       if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
+      // Modo Deus (Admin Bypass): o criador do sistema não paga tributos
+      isAdmin = user.role === 'admin' || user.id === '6a55c29fb7d4f6ae965f92fb' || user.email === 'ceo@amzdatasoftware.com';
       const carteiras = await sdk.entities.UserWallet.filter({ user_id: user.id });
       wallet = carteiras[0] || await sdk.entities.UserWallet.create({ user_id: user.id, creditos_mensagem: 5, creditos_integracao: 20 });
-      if ((wallet.creditos_mensagem || 0) < 1 || (wallet.creditos_integracao || 0) < 1) {
-        return Response.json({ error: 'Seus créditos acabaram. Recarregue no Mercado Multiversal ou ative o modo BYOK.' }, { status: 402 });
+      if (!isAdmin) {
+        if ((wallet.creditos_mensagem || 0) < 1 || (wallet.creditos_integracao || 0) < 1) {
+          return Response.json({ error: 'Seus créditos acabaram. Recarregue no Mercado Multiversal ou ative o modo BYOK.' }, { status: 402 });
+        }
       }
     }
 
@@ -653,7 +658,9 @@ CONTEXTO DO ORQUESTRADOR: ${params.contexto_imediato_a_repassar || ''}${conhecim
 UNIVERSO: ${meta.universo_id} | ERA: ${meta.ano_ou_era_inicial} | CLIMA: ${meta.clima_inicial}
 PERSONAGEM POV: ${pov.nome} (estado: ${pov.estado_mental_base}, local: ${pov.localizacao_inicial}, agente Base44: ${alocPov?.superagente_designado || '?'})
 PRIMEIRA MEMÓRIA: ${alocPov?.payload_de_inicializacao?.primeira_memoria_registrada || '?'}`);
-      const tributoGenesis = await cobrarTributo(sdk, wallet, 'Criar_Nova_Historia');
+      const tributoGenesis = isAdmin
+        ? { custo_mensagem: 0, custo_integracao: 0, aviso: 'Isento (Modo Admin)' }
+        : await cobrarTributo(sdk, wallet, 'Criar_Nova_Historia');
       return Response.json({ roteamento, storyId: newStory.id, alocacoes: alocacoesGenesis, grafo: grafoGenesis, tributo: tributoGenesis });
     }
 
@@ -1204,7 +1211,9 @@ PERSONAGENS E AGENTES BASE44: ${characters.map((c) => `${c.name} → ${c.superag
     // Orquestrador de Renderização Visual: decide zoom, clusters e destaques do grafo na UI
     const render = await orquestradorRenderizacao(sdk, story, universe);
 
-    const tributo = await cobrarTributo(sdk, wallet, roteamento.intencao_usuario);
+    const tributo = isAdmin
+      ? { custo_mensagem: 0, custo_integracao: 0, aviso: 'Isento (Modo Admin)' }
+      : await cobrarTributo(sdk, wallet, roteamento.intencao_usuario);
     return Response.json({ roteamento, storyId: story.id, alocacoes, paradoxo, colisao, quarentenas, contaminacao, desintegracao, assimilacoes, veredicto, sincronizacao, grafo, render, compactacoes, tributo });
   } catch (error) {
     return Response.json({ error: error.message }, { status: 500 });

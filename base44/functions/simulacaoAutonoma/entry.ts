@@ -13,13 +13,18 @@ Deno.serve(async (req) => {
 
     // ----- Verificação Financeira: turnos autônomos nativos consomem energia da carteira -----
     let wallet = null;
+    let isAdmin = false;
     if (!modoByok) {
       const user = await base44.auth.me();
       if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
+      // Modo Deus (Admin Bypass): o criador do sistema não paga tributos
+      isAdmin = user.role === 'admin' || user.id === '6a55c29fb7d4f6ae965f92fb' || user.email === 'ceo@amzdatasoftware.com';
       const carteiras = await sdk.entities.UserWallet.filter({ user_id: user.id });
       wallet = carteiras[0] || await sdk.entities.UserWallet.create({ user_id: user.id, creditos_mensagem: 5, creditos_integracao: 20 });
-      if ((wallet.creditos_mensagem || 0) < CUSTO_MENSAGEM_AUTONOMO || (wallet.creditos_integracao || 0) < CUSTO_INTEGRACAO_AUTONOMO) {
-        return Response.json({ error: 'Energia insuficiente', stopAutopilot: true }, { status: 402 });
+      if (!isAdmin) {
+        if ((wallet.creditos_mensagem || 0) < CUSTO_MENSAGEM_AUTONOMO || (wallet.creditos_integracao || 0) < CUSTO_INTEGRACAO_AUTONOMO) {
+          return Response.json({ error: 'Energia insuficiente', stopAutopilot: true }, { status: 402 });
+        }
       }
     }
 
@@ -231,7 +236,9 @@ Em "prosa", escreva apenas o parágrafo literário, em português, sem avisos si
 
     // ----- Cobrança do turno autônomo -----
     let tributo = null;
-    if (wallet) {
+    if (isAdmin) {
+      tributo = { custo_mensagem: 0, custo_integracao: 0, aviso: 'Isento (Modo Admin)' };
+    } else if (wallet) {
       const saldoMensagem = (wallet.creditos_mensagem || 0) - CUSTO_MENSAGEM_AUTONOMO;
       const saldoIntegracao = (wallet.creditos_integracao || 0) - CUSTO_INTEGRACAO_AUTONOMO;
       await sdk.entities.UserWallet.update(wallet.id, {
