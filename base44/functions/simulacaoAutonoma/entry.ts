@@ -172,8 +172,62 @@ ${ultimosBlocos}`,
       acaoBruta = criacao.acao_bruta_de_introducao;
     }
 
-    // ----- Registra a iniciativa autônoma na história -----
-    await sdk.entities.Story.update(story.id, { personagem_em_foco_autonomo: personagemFoco.id });
+    // ----- Diretor Narrativo: transforma a intenção bruta em prosa literária -----
+    const direcao = await sdk.integrations.Core.InvokeLLM({
+      prompt: `O personagem ${personagemFoco.name} decidiu: '${acaoBruta}'. Escreva isso como o próximo parágrafo de um livro de ficção. Atualize o cenário e faça o texto fluir. Respeite as regras do universo.
+
+[REGRAS DO UNIVERSO "${universe.name}"]: ${universe.rules || 'não definidas — assuma física realista'}
+[CENA ATUAL]: Cenário: ${story.cenario_atual || '?'} | Clima: ${story.clima_atual || '?'} | Momento: ${story.data_hora_atual || '?'} | Presentes: ${(story.characters_in_scene || []).join(', ') || 'ninguém'}
+[ÚLTIMOS 3 BLOCOS NARRATIVOS]:
+${ultimosBlocos}
+
+Em "prosa", escreva apenas o parágrafo literário, em português, sem avisos sistêmicos. Em "memorias_registradas", gere a memória subjetiva do evento para o personagem que agiu E para cada outro presente na cena (cada um só percebe o que viveu).`,
+      response_json_schema: {
+        type: 'object',
+        properties: {
+          prosa: { type: 'string' },
+          cenario_atualizado: { type: 'string' },
+          clima_atualizado: { type: 'string' },
+          memorias_registradas: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: { name: { type: 'string' }, memoria: { type: 'string' } },
+              required: ['name', 'memoria']
+            }
+          }
+        },
+        required: ['prosa', 'memorias_registradas']
+      }
+    });
+
+    // ----- Atualização de Memória: personagem que agiu + presentes na cena -----
+    const elencoAtual = novoPersonagem ? characters.concat([novoPersonagem]) : characters;
+    const memoriasNovas = (direcao.memorias_registradas || [])
+      .map((m) => {
+        const c = elencoAtual.find((x) => x.name === m.name);
+        return c ? { character_id: c.id, character_name: c.name, superagente_id: c.superagente_id || null, story_id: story.id, content: m.memoria } : null;
+      })
+      .filter(Boolean);
+    if (memoriasNovas.length) await sdk.entities.CharacterMemory.bulkCreate(memoriasNovas);
+
+    // ----- Novo bloco narrativo autônomo -----
+    const bloco = await sdk.entities.NarrativeBlock.create({
+      story_id: story.id,
+      type: 'AI',
+      content: direcao.prosa,
+      pov_character_name: personagemFoco.name,
+      psychological_state: personagemFoco.psychological_state || null,
+      intencao: 'Simulacao_Autonoma',
+      agentes_acionados: ['Motor_do_Relogio', `Superagente_${personagemFoco.name}`, 'Diretor_Narrativo']
+    });
+
+    // ----- Registra a iniciativa autônoma e o cenário atualizado na história -----
+    await sdk.entities.Story.update(story.id, {
+      personagem_em_foco_autonomo: personagemFoco.id,
+      cenario_atual: direcao.cenario_atualizado || story.cenario_atual,
+      clima_atual: direcao.clima_atualizado || story.clima_atual
+    });
 
     // ----- Cobrança do turno autônomo -----
     let tributo = null;
@@ -193,6 +247,8 @@ ${ultimosBlocos}`,
       personagemFoco: { id: personagemFoco.id, nome: personagemFoco.name },
       novoPersonagemCriado: novoPersonagem ? { id: novoPersonagem.id, nome: novoPersonagem.name } : null,
       acaoBruta,
+      bloco: { id: bloco.id, type: bloco.type, prosa: direcao.prosa, pov: personagemFoco.name },
+      memoriasRegistradas: memoriasNovas.length,
       tributo
     });
   } catch (error) {
