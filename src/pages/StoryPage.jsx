@@ -13,8 +13,9 @@ import Composer from "@/components/narrative/Composer";
 import CharacterPanel from "@/components/narrative/CharacterPanel";
 import ByokPromptPanel from "@/components/narrative/ByokPromptPanel";
 
-export default function StoryPage() {
-  const { id } = useParams();
+export default function StoryPage({ storyIdProp }) {
+  const params = useParams();
+  const id = storyIdProp || params.id;
   const isNew = id === "nova";
   const navigate = useNavigate();
   const queryClient = useQueryClient();

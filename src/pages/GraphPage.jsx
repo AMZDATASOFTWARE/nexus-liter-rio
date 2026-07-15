@@ -11,8 +11,9 @@ import LodHud from "@/components/graph/LodHud";
 import ZoomBar from "@/components/graph/ZoomBar";
 import { TIPO_CORES } from "@/components/graph/graphUtils";
 
-export default function GraphPage() {
-  const { universeId } = useParams();
+export default function GraphPage({ universeIdProp }) {
+  const params = useParams();
+  const universeId = universeIdProp || params.universeId;
   const [selected, setSelected] = useState(null);
   const [modo, setModo] = useState("2d");
   const [lod, setLod] = useState(null);
