@@ -37,6 +37,12 @@ ${antigas.map((m) => `- ${m.content}`).join('\n')}`,
   return { personagem: character.name, memorias_compactadas: antigas.length };
 }
 
+// ----- Arquiteto de Grafos (delegado à função grafoOmniversal) — só chamado em eventos fortes (chegada/partida), throttled -----
+async function arquitetoDeGrafos(sdk, universeId, dadosBrutos) {
+  const r = await sdk.functions.invoke('grafoOmniversal', { acao: 'arquiteto', universeId, dadosBrutos });
+  return r?.data ?? r;
+}
+
 // ----- Motor de Bastidores: avança UM cluster off-screen por tique (amortizado no turno) -----
 // O mundo continua vivendo fora da cena que o autor observa: personagens em outros Locais
 // interagem, investigam e viajam. Cada tique custa 1 chamada de LLM (um cluster só).
@@ -264,6 +270,16 @@ ${Object.entries(memoriasPorNome).map(([n, m]) => `- ${n}: ${m}`).join('\n')}`,
       });
     }
 
+    // ----- Espelha no Megagrafo apenas eventos fortes de bastidores (throttled: não a cada tique rotineiro) -----
+    let grafo = null;
+    if (chegadas.length || partidas.length) {
+      try {
+        grafo = await arquitetoDeGrafos(sdk, story.universe_id, `EVENTO DE BASTIDORES EM "${localNome}": ${cronica.resumo_bastidores}
+CHEGADAS: ${chegadas.map((c) => `${c.nome} chegou a ${c.destino}`).join('; ') || 'nenhuma'}
+PARTIDAS: ${partidas.map((p) => `${p.nome} partiu para ${p.destino}`).join('; ') || 'nenhuma'}`);
+      } catch (_e) { grafo = null; }
+    }
+
     return Response.json({
       local: localNome,
       participantes: membros.map((c) => c.name),
@@ -272,6 +288,7 @@ ${Object.entries(memoriasPorNome).map(([n, m]) => `- ${n}: ${m}`).join('\n')}`,
       partidas,
       memorias_registradas: memBastidores.length,
       compactacoes,
+      grafo,
       bloco: { id: blocoOff.id, type: blocoOff.type }
     });
   } catch (error) {
