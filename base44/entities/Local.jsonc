@@ -29,6 +29,13 @@
       },
       "description": "Nomes dos personagens atualmente neste local"
     },
+    "objetos_presentes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Nomes dos WorldObject atualmente neste local"
+    },
     "ultimo_evento": {
       "type": "string",
       "description": "Resumo do ultimo acontecimento off-screen neste local"
