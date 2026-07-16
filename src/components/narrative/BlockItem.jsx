@@ -1,6 +1,6 @@
-import React from "react";
+import React, { useState } from "react";
 import { motion } from "framer-motion";
-import { Eye, Sparkles, Brain, Globe } from "lucide-react";
+import { Eye, Sparkles, Brain, Globe, ChevronDown, ChevronRight } from "lucide-react";
 
 export default function BlockItem({ block }) {
   if (block.type === "USER") {
@@ -13,13 +13,15 @@ export default function BlockItem({ block }) {
     );
   }
   if (block.type === "OFFSCREEN") {
+    const [aberto, setAberto] = useState(false);
     return (
       <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="flex justify-center">
         <div className="w-full max-w-[82%] rounded-xl border border-dashed border-cyan-500/20 bg-cyan-500/[0.03] px-4 py-3">
-          <div className="flex items-center gap-1.5 mb-1 text-[10px] uppercase tracking-[0.2em] text-cyan-400/60">
+          <button onClick={() => setAberto((a) => !a)} className="w-full flex items-center gap-1.5 text-[10px] uppercase tracking-[0.2em] text-cyan-400/60 hover:text-cyan-300/80">
+            {aberto ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
             <Globe className="w-3 h-3" /> Nos bastidores{block.memoria_character_name ? ` · ${block.memoria_character_name}` : ""}
-          </div>
-          <p className="text-[13px] leading-relaxed text-zinc-400/90 italic whitespace-pre-wrap">{block.content}</p>
+          </button>
+          {aberto && <p className="text-[13px] leading-relaxed text-zinc-400/90 italic whitespace-pre-wrap mt-2">{block.content}</p>}
         </div>
       </motion.div>
     );
