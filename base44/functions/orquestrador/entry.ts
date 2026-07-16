@@ -1,11 +1,40 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.38';
 
-// ----- Casamento fuzzy de local: o texto de cenário é gerado livremente por LLM turno a turno — igualdade exata duplicaria o Local -----
+// ----- Casamento fuzzy de local (fallback): usado só quando o Diretor não resolve a identidade hierárquica -----
 function mesmoLocal(a, b) {
   const na = (a || '').toLowerCase().trim();
   const nb = (b || '').toLowerCase().trim();
   if (!na || !nb) return false;
   return na === nb || na.includes(nb) || nb.includes(na);
+}
+
+// ----- Endereço hierárquico de Local: slug estável (não o texto atmosférico livre que muda a cada turno) -----
+function slugifyLocal(s) {
+  return (s || '')
+    .toLowerCase()
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_|_$/g, '')
+    .slice(0, 60);
+}
+// Um path "contém ou é o mesmo que" o outro: prefixo por SEGMENTO (casa.sala e casa.quarto NUNCA batem; casa e casa.quarto batem)
+function pathContem(a, b) {
+  if (!a || !b) return false;
+  const pa = a.split('.'), pb = b.split('.');
+  const [curto, longo] = pa.length <= pb.length ? [pa, pb] : [pb, pa];
+  return curto.every((seg, i) => seg === longo[i]);
+}
+// Resolve o path de um cenário: reaproveita Local existente (mesmo lugar ou dentro de um já conhecido) ou cria um path novo
+function resolverPathLocal(cenarioNome, identidade, locaisUniverso) {
+  const porNome = new Map(locaisUniverso.map((l) => [l.name.toLowerCase().trim(), l]));
+  const mesmo = identidade?.mesmo_local_que ? porNome.get(identidade.mesmo_local_que.toLowerCase().trim()) : null;
+  if (mesmo) return { path: mesmo.path || slugifyLocal(mesmo.name), localExistente: mesmo };
+  const pai = identidade?.sublocal_dentro_de ? porNome.get(identidade.sublocal_dentro_de.toLowerCase().trim()) : null;
+  if (pai) return { path: `${pai.path || slugifyLocal(pai.name)}.${slugifyLocal(cenarioNome)}`, localExistente: null };
+  // Fallback: nome exato já conhecido (o Diretor não preencheu a identidade, mas o Local já existe)
+  const existenteFallback = locaisUniverso.find((l) => mesmoLocal(l.name, cenarioNome));
+  if (existenteFallback) return { path: existenteFallback.path || slugifyLocal(existenteFallback.name), localExistente: existenteFallback };
+  return { path: slugifyLocal(cenarioNome), localExistente: null };
 }
 
 // ----- Cobrador de Tributos: 1 Crédito de Mensagem por turno + Créditos de Integração conforme a intenção -----
@@ -412,7 +441,7 @@ async function orquestradorRenderizacao(sdk, story, universe) {
 }
 
 // ----- Sincronizador de Estado Global: atualiza tempo, clima e cenário após cada turno -----
-async function sincronizarEstadoGlobal(sdk, universeName, textoUltimoTurno, estadoAnterior) {
+async function sincronizarEstadoGlobal(sdk, universeName, textoUltimoTurno, estadoAnterior, locaisConhecidos) {
   return await sdk.integrations.Core.InvokeLLM({
     prompt: `Você é o Sincronizador de Estado Global. Após a última interação narrativa entre o usuário e os agentes, você deve analisar o texto resultante para atualizar as condições físicas e temporais do universo focado.
 
@@ -423,7 +452,14 @@ O QUE VOCÊ DEVE RASTREAR:
 
 Se o texto não indicar mudanças claras, mantenha o estado anterior, mas aplique o decurso natural do tempo (ex: se demorou muito conversando, a tarde pode ter virado noite).
 
+4. IDENTIDADE HIERÁRQUICA DO LOCAL ("cenario_identidade"): o texto atmosférico do cenário muda de turno a turno (ex: "Taverna do Cais" vira "Interior da Taverna do Cais, observando pela janela"), mas fisicamente pode ser o MESMO lugar. Compare "cenario_focado" com os [LOCAIS JÁ CONHECIDOS] abaixo e preencha:
+   - "mesmo_local_que": nome EXATO de um Local já conhecido, SE este cenário for fisicamente o mesmo lugar de antes (só descrito diferente). Vazio caso contrário.
+   - "sublocal_dentro_de": nome EXATO de um Local já conhecido, SE este cenário for uma área DENTRO dele (ex: o quarto dentro da casa, o banheiro dentro do quarto). Vazio caso contrário.
+   Se nenhum dos dois se aplicar, este é um lugar novo e independente (não preencha nenhum). NUNCA invente nomes fora da lista de Locais já conhecidos.
+
 O universo focado é: "${universeName}".
+
+[LOCAIS JÁ CONHECIDOS NESTE UNIVERSO]: ${locaisConhecidos || 'nenhum ainda'}
 
 [TEXTO GERADO NA ÚLTIMA INTERAÇÃO]:
 "${textoUltimoTurno}"
@@ -442,6 +478,13 @@ ${estadoAnterior}`,
             condicao_climatica_atmosferica: { type: 'string' }
           },
           required: ['linha_temporal_atual', 'data_ou_hora_aproximada', 'cenario_focado', 'condicao_climatica_atmosferica']
+        },
+        cenario_identidade: {
+          type: 'object',
+          properties: {
+            mesmo_local_que: { type: 'string' },
+            sublocal_dentro_de: { type: 'string' }
+          }
         },
         mudanca_drastica_detectada: { type: 'boolean' },
         notas_para_o_grafo: { type: 'string', description: 'Instruções curtas para o Arquiteto de Grafos sobre o cenário visual da interface' }
