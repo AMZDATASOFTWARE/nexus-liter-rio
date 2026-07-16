@@ -3,6 +3,11 @@ import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { computeSpherePositions } from "./sphereLayout";
 
+// Alcance da câmera: MAX_DIST alto para enquadrar estruturas com milhares de nós,
+// sempre abaixo do far plane (50000) para evitar clipping
+const MIN_DIST = 120;
+const MAX_DIST = 10000;
+
 export default function SphereGraph3D({ nos, arestas, metadata, lod, onViewportEvent, onSelect, zoomControlRef }) {
   const mountRef = useRef(null);
   const onSelectRef = useRef(onSelect);
@@ -16,7 +21,7 @@ export default function SphereGraph3D({ nos, arestas, metadata, lod, onViewportE
     if (!el || !nos.length) return;
     const scene = new THREE.Scene();
     scene.background = new THREE.Color("#08080f");
-    const camera = new THREE.PerspectiveCamera(60, el.clientWidth / el.clientHeight, 0.1, 5000);
+    const camera = new THREE.PerspectiveCamera(60, el.clientWidth / el.clientHeight, 0.1, 50000);
     camera.position.set(0, 120, 560);
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(el.clientWidth, el.clientHeight);
@@ -24,11 +29,12 @@ export default function SphereGraph3D({ nos, arestas, metadata, lod, onViewportE
     el.appendChild(renderer.domElement);
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
+    controls.maxDistance = 40000;
 
-    // Barrinha de zoom discreta: t (0..1) → distância da câmera 1000..120
+    // Barrinha de zoom discreta: t (0..1) → distância exponencial MAX_DIST..MIN_DIST
     if (zoomControlRef) {
       zoomControlRef.current = (t) => {
-        camera.position.setLength(Math.max(120, 1000 - t * 880));
+        camera.position.setLength(MAX_DIST * Math.pow(MIN_DIST / MAX_DIST, t));
       };
     }
 

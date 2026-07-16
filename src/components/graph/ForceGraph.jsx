@@ -1,6 +1,10 @@
 import React, { useMemo, useRef, useEffect } from "react";
 import { computeLayout, TIPO_CORES } from "./graphUtils";
 
+// Limites de escala do viewport: MIN_ZOOM baixo o suficiente para enquadrar milhares de nós
+const MIN_ZOOM = 0.02;
+const MAX_ZOOM = 5;
+
 export default function ForceGraph({ nodes, edges, selectedId, onSelect, render, zoomControlRef, width = 1200, height = 800 }) {
   const { positions, index } = useMemo(
     () => computeLayout(nodes, edges, width, height),
@@ -29,10 +33,10 @@ export default function ForceGraph({ nodes, edges, selectedId, onSelect, render,
     if (!svg) return;
     applyView();
 
-    // Barrinha de zoom discreta: t (0..1) → escala 0.3..5, ancorada no centro
+    // Barrinha de zoom discreta: t (0..1) → escala MIN_ZOOM..MAX_ZOOM, ancorada no centro
     if (zoomControlRef) {
       zoomControlRef.current = (t) => {
-        const k = 0.3 * Math.pow(5 / 0.3, t);
+        const k = MIN_ZOOM * Math.pow(MAX_ZOOM / MIN_ZOOM, t);
         const v = view.current;
         const cx = width / 2, cy = height / 2;
         view.current = { k, x: cx - ((cx - v.x) / v.k) * k, y: cy - ((cy - v.y) / v.k) * k };
@@ -55,7 +59,7 @@ export default function ForceGraph({ nodes, edges, selectedId, onSelect, render,
       const p = toSvgPoint(e.clientX, e.clientY);
       if (!p) return;
       const v = view.current;
-      const k = Math.min(5, Math.max(0.3, v.k * (e.deltaY < 0 ? 1.12 : 1 / 1.12)));
+      const k = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, v.k * (e.deltaY < 0 ? 1.12 : 1 / 1.12)));
       view.current = { k, x: p.x - ((p.x - v.x) / v.k) * k, y: p.y - ((p.y - v.y) / v.k) * k };
       applyView();
     };

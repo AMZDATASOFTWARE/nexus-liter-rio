@@ -1,8 +1,8 @@
 import React, { useState } from "react";
 import { ZoomIn, ZoomOut } from "lucide-react";
 
-export default function ZoomBar({ onZoom }) {
-  const [t, setT] = useState(0.5);
+export default function ZoomBar({ onZoom, initial = 0.5 }) {
+  const [t, setT] = useState(initial);
   const change = (e) => {
     const v = Number(e.target.value);
     setT(v);

@@ -4,6 +4,11 @@ import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { computeTemporalLayout } from "./temporalLayout";
 import { corSegura } from "./sphereLayout";
 
+// Alcance da câmera: MAX_DIST alto para enquadrar estruturas com milhares de nós,
+// sempre abaixo do far plane (50000) para evitar clipping
+const MIN_DIST = 140;
+const MAX_DIST = 10000;
+
 function makeLabel(text) {
   const canvas = document.createElement("canvas");
   canvas.width = 512;
@@ -28,7 +33,7 @@ export default function TemporalGraph3D({ nos, arestas, layers, wormholes, onSel
     if (!el || !nos.length) return;
     const scene = new THREE.Scene();
     scene.background = new THREE.Color("#08080f");
-    const camera = new THREE.PerspectiveCamera(60, el.clientWidth / el.clientHeight, 0.1, 5000);
+    const camera = new THREE.PerspectiveCamera(60, el.clientWidth / el.clientHeight, 0.1, 50000);
     camera.position.set(0, 220, 620);
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(el.clientWidth, el.clientHeight);
@@ -36,11 +41,12 @@ export default function TemporalGraph3D({ nos, arestas, layers, wormholes, onSel
     el.appendChild(renderer.domElement);
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
+    controls.maxDistance = 40000;
 
-    // Barrinha de zoom discreta: t (0..1) → distância da câmera 1100..140
+    // Barrinha de zoom discreta: t (0..1) → distância exponencial MAX_DIST..MIN_DIST
     if (zoomControlRef) {
       zoomControlRef.current = (t) => {
-        camera.position.setLength(Math.max(140, 1100 - t * 960));
+        camera.position.setLength(MAX_DIST * Math.pow(MIN_DIST / MAX_DIST, t));
       };
     }
 

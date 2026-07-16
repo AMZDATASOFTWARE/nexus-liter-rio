@@ -147,7 +147,8 @@ export default function GraphPage({ universeIdProp }) {
         ) : (
           <ForceGraph nodes={nodes} edges={edges} selectedId={selected?.node_id} onSelect={setSelected} render={render} zoomControlRef={zoomRef} />
         )}
-        <ZoomBar key={modo} onZoom={(t) => zoomRef.current?.(t)} />
+        {/* initial calibrado para a posição de partida de cada câmera (2D: k=1 | esfera: ~573 | tempo: ~658) */}
+        <ZoomBar key={modo} initial={modo === "esfera" ? 0.65 : modo === "tempo" ? 0.64 : 0.71} onZoom={(t) => zoomRef.current?.(t)} />
         {modo === "esfera" && <LodHud lod={lod} loading={lodLoading} onReset={() => setLod(null)} />}
         <NodeDetails node={selected} edges={modo === "esfera" && fisica ? fisica.arestas : modo === "tempo" && temporal ? temporal.arestas : edges} nodes={modo === "esfera" && fisica ? fisica.nos : modo === "tempo" && temporal ? temporal.nos : nodes} onClose={() => setSelected(null)} />
       </div>
