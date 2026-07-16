@@ -194,6 +194,16 @@ ${ultimosBlocos}`,
       ? story.ritmo_narrativo
       : { peso_acao: 25, peso_dialogo: 25, peso_introspeccao: 25, peso_ambientacao: 25 };
 
+    // ----- Objetos duráveis presentes na cena (Gap 3) -----
+    let objetosUniverso = [];
+    try { objetosUniverso = await sdk.entities.WorldObject.filter({ universe_id: story.universe_id }); } catch (_e) { objetosUniverso = []; }
+    const nomesEmCenaObj = new Set([...(story.characters_in_scene || []), personagemFoco?.name].filter(Boolean));
+    const idsEmCenaObj = new Set(characters.filter((c) => nomesEmCenaObj.has(c.name)).map((c) => c.id));
+    const objetosPresentes = objetosUniverso.filter((o) => (o.localizacao && o.localizacao === story.cenario_atual) || (o.posse_character_id && idsEmCenaObj.has(o.posse_character_id)));
+    const objetosInjecao = objetosPresentes.length
+      ? objetosPresentes.map((o) => `- "${o.name}" (${o.tipo || 'objeto'}) — estado: ${o.estado_atual || 'intacto'}${o.posse_character_name ? ` | com ${o.posse_character_name}` : o.localizacao ? ` | em ${o.localizacao}` : ''}`).join('\n')
+      : 'nenhum objeto durável registrado nesta cena';
+
     // ----- Diretor Narrativo: transforma a intenção bruta em prosa literária -----
     const direcao = await sdk.integrations.Core.InvokeLLM({
       prompt: `O personagem ${personagemFoco.name} decidiu: '${acaoBruta}'. Escreva isso como o próximo parágrafo de um livro de ficção. Atualize o cenário e faça o texto fluir. Respeite as regras do universo.
@@ -210,11 +220,13 @@ EXPANSÃO DE LORE: se a prosa mencionar personagens INÉDITOS (que não estejam 
 
 [REGRAS DO UNIVERSO "${universe.name}"]: ${universe.rules || 'não definidas — assuma física realista'}
 [CENA ATUAL]: Cenário: ${story.cenario_atual || '?'} | Clima: ${story.clima_atual || '?'} | Momento: ${story.data_hora_atual || '?'} | Presentes: ${(story.characters_in_scene || []).join(', ') || 'ninguém'}
+[OBJETOS PRESENTES E SEU ESTADO DURÁVEL — respeite-os: um item quebrado continua quebrado; um item que outro carrega não está livre para pegar]:
+${objetosInjecao}
 [PERSONAGENS JÁ CADASTRADOS NO SISTEMA]: ${characters.map((c) => c.name).join(', ') || 'nenhum'}
 [ÚLTIMOS 3 BLOCOS NARRATIVOS]:
 ${ultimosBlocos}
 
-Em "prosa", escreva apenas o parágrafo literário, em português, sem avisos sistêmicos. Em "memorias_registradas", gere a memória subjetiva do evento para o personagem que agiu E para cada outro presente na cena (cada um só percebe o que viveu). Em "memorias_evocadas": se a cena organicamente faz um personagem reviver uma lembrança (gatilho sensorial, objeto, nome, lugar), retorne-a em primeira pessoa dele — será renderizada como flashback destacado; só evoque quando o gatilho existir de fato. Se a lembrança evocar alguém que NÃO está cadastrado e pode reaparecer (vivo, relevante), preencha "personagem_evocado" com pode_reaparecer=true; se está morto e não volta, false.`,
+Em "prosa", escreva apenas o parágrafo literário, em português, sem avisos sistêmicos. Em "memorias_registradas", gere a memória subjetiva do evento para o personagem que agiu E para cada outro presente na cena (cada um só percebe o que viveu). Em "memorias_evocadas": se a cena organicamente faz um personagem reviver uma lembrança (gatilho sensorial, objeto, nome, lugar), retorne-a em primeira pessoa dele — será renderizada como flashback destacado; só evoque quando o gatilho existir de fato. Se a lembrança evocar alguém que NÃO está cadastrado e pode reaparecer (vivo, relevante), preencha "personagem_evocado" com pode_reaparecer=true; se está morto e não volta, false. Em "objetos_manipulados": se um objeto for usado, alterado, movido, quebrado ou trocar de dono, ou se um objeto inédito com peso narrativo surgir, registre-o (name, novo_estado e, quando aplicável, nova_localizacao / novo_dono_character_name / acao). Só objetos com peso narrativo.`,
       response_json_schema: {
         type: 'object',
         properties: {
@@ -251,7 +263,8 @@ Em "prosa", escreva apenas o parágrafo literário, em português, sem avisos si
               },
               required: ['character_name', 'memoria']
             }
-          }
+          },
+          objetos_manipulados: { type: 'array', items: { type: 'object', properties: { name: { type: 'string' }, tipo: { type: 'string' }, novo_estado: { type: 'string' }, nova_localizacao: { type: 'string' }, novo_dono_character_name: { type: 'string' }, acao: { type: 'string' } }, required: ['name'] } }
         },
         required: ['prosa', 'momento_atualizado', 'memorias_registradas']
       }
@@ -319,6 +332,42 @@ Em "prosa", escreva apenas o parágrafo literário, em português, sem avisos si
       if (memEvoc.length) await sdk.entities.CharacterMemory.bulkCreate(memEvoc);
     }
 
+    // ----- Objetos duráveis: upsert do estado manipulado neste turno (Gap 3) -----
+    const objetosManipulados = direcao.objetos_manipulados || [];
+    if (objetosManipulados.length) {
+      try {
+        const porNomeObj = new Map(objetosUniverso.map((o) => [o.name, o]));
+        for (const om of objetosManipulados) {
+          if (!om.name) continue;
+          const dono = om.novo_dono_character_name ? elencoAtual.find((c) => c.name === om.novo_dono_character_name) : null;
+          const ex = porNomeObj.get(om.name);
+          const logLinha = `[${story.data_hora_atual || '?'}] ${om.acao || 'alterado'}${om.novo_estado ? ` → ${om.novo_estado}` : ''}`;
+          if (ex) {
+            await sdk.entities.WorldObject.update(ex.id, {
+              estado_atual: om.novo_estado || ex.estado_atual,
+              localizacao: dono ? null : (om.nova_localizacao || ex.localizacao),
+              posse_character_id: dono ? dono.id : (om.nova_localizacao ? null : ex.posse_character_id),
+              posse_character_name: dono ? dono.name : (om.nova_localizacao ? null : ex.posse_character_name),
+              historico: [...(ex.historico || []), logLinha].slice(-50)
+            });
+          } else {
+            await sdk.entities.WorldObject.create({
+              universe_id: story.universe_id,
+              name: om.name,
+              node_id: `objeto_${om.name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '').slice(0, 50)}`,
+              tipo: om.tipo || 'objeto',
+              estado_atual: om.novo_estado || 'intacto',
+              localizacao: dono ? null : (om.nova_localizacao || story.cenario_atual || null),
+              posse_character_id: dono ? dono.id : null,
+              posse_character_name: dono ? dono.name : null,
+              historico: [logLinha],
+              estado_simulacao: 'intacto'
+            });
+          }
+        }
+      } catch (_e) { /* enhancement, nunca quebra o turno */ }
+    }
+
     // ----- Novo bloco narrativo autônomo -----
     const bloco = await sdk.entities.NarrativeBlock.create({
       story_id: story.id,
@@ -353,6 +402,7 @@ Em "prosa", escreva apenas o parágrafo literário, em português, sem avisos si
 REAÇÕES DOS SUPERAGENTES: [${personagemFoco.name} — iniciativa autônoma]: ${acaoBruta}
 MEMÓRIAS REGISTRADAS: ${(direcao.memorias_registradas || []).map((m) => `${m.name}: ${m.memoria}`).join(' | ') || 'nenhuma'}
 MEMÓRIAS EVOCADAS: ${memoriasEvocadas.map((ev) => `${ev.character_name} reviveu: ${ev.memoria}${ev.personagem_evocado?.name ? ` (evocou ${ev.personagem_evocado.name})` : ''}`).join(' | ') || 'nenhuma'}
+OBJETOS MANIPULADOS: ${objetosManipulados.map((o) => `${o.name}: ${o.acao || 'alterado'}${o.novo_estado ? ` (${o.novo_estado})` : ''}`).join(' | ') || 'nenhum'}
 ESTADO GLOBAL ATUAL: momento "${momentoAtual}", cenário "${cenarioAtual}", clima "${climaAtual}"
 NOTAS DO SINCRONIZADOR PARA O GRAFO: ${direcao.notas_grafo || 'nenhuma'}
 PERSONAGENS E AGENTES BASE44: ${elencoAtual.map((c) => `${c.name} → ${c.superagente_id || '?'}`).join('; ')}`);
