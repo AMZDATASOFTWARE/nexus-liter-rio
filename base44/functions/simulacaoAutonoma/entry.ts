@@ -467,11 +467,11 @@ PERSONAGENS E AGENTES BASE44: ${elencoAtual.map((c) => `${c.name} → ${c.supera
           presentes.filter((c) => c.localizacao_atual !== cenarioAtual).map((c) => sdk.entities.Character.update(c.id, { localizacao_atual: cenarioAtual }))
         );
         if (cenarioAtual) {
-          const locaisUniverso = await sdk.entities.Local.filter({ universe_id: story.universe_id });
-          const localCena = locaisUniverso.find((l) => mesmoLocal(l.name, cenarioAtual));
-          const patchCena = { personagens_presentes: cenaFinal, objetos_presentes: objetosUniverso.filter((o) => o.localizacao === cenarioAtual).map((o) => o.name), clima_local: climaAtual || null, estado_atual: 'Ativo' };
-          if (localCena) await sdk.entities.Local.update(localCena.id, patchCena);
+          const { path: pathCena, localExistente } = resolverPathLocal(cenarioAtual, direcao.cenario_identidade, locaisUniverso);
+          const patchCena = { path: pathCena, personagens_presentes: cenaFinal, objetos_presentes: objetosUniverso.filter((o) => o.localizacao === cenarioAtual).map((o) => o.name), clima_local: climaAtual || null, estado_atual: 'Ativo' };
+          if (localExistente) await sdk.entities.Local.update(localExistente.id, patchCena);
           else await sdk.entities.Local.create({ universe_id: story.universe_id, name: cenarioAtual, descricao_persistente: 'Cenário ativo da narrativa.', ...patchCena });
+          await Promise.all(presentes.map((c) => sdk.entities.Character.update(c.id, { localizacao_path: pathCena })));
         }
       } catch (_e) { /* Camada A é enhancement; nunca quebrar o turno */ }
 
