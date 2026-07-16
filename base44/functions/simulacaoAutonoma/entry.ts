@@ -323,13 +323,16 @@ Em "prosa", escreva apenas o parágrafo literário, em português, sem avisos si
           .filter(Boolean);
         if (primeirasMems.length) await sdk.entities.CharacterMemory.bulkCreate(primeirasMems);
       }
-      const memEvoc = memoriasEvocadas
+      const paresEvoc = memoriasEvocadas
         .map((ev) => {
           const c = elencoAtual.find((x) => x.name === ev.character_name);
-          return c ? { character_id: c.id, character_name: c.name, superagente_id: c.superagente_id || null, story_id: story.id, content: ev.memoria } : null;
+          return c ? { ev, registro: { character_id: c.id, character_name: c.name, superagente_id: c.superagente_id || null, story_id: story.id, content: ev.memoria } } : null;
         })
         .filter(Boolean);
-      if (memEvoc.length) await sdk.entities.CharacterMemory.bulkCreate(memEvoc);
+      if (paresEvoc.length) {
+        const criadasEvoc = await sdk.entities.CharacterMemory.bulkCreate(paresEvoc.map((p) => p.registro));
+        paresEvoc.forEach((p, i) => { p.ev._memoria_ref = criadasEvoc[i]?.id || null; });
+      }
     }
 
     // ----- Objetos duráveis: upsert do estado manipulado neste turno (Gap 3) -----
@@ -381,7 +384,7 @@ Em "prosa", escreva apenas o parágrafo literário, em português, sem avisos si
 
     // Flashbacks evocados viram blocos legíveis logo após a prosa autônoma
     if (memoriasEvocadas.length) {
-      await sdk.entities.NarrativeBlock.bulkCreate(memoriasEvocadas.map((ev) => ({ story_id: story.id, type: 'MEMORIA', content: ev.memoria, memoria_character_name: ev.character_name })));
+      await sdk.entities.NarrativeBlock.bulkCreate(memoriasEvocadas.map((ev) => ({ story_id: story.id, type: 'MEMORIA', content: ev.memoria, memoria_character_name: ev.character_name, memoria_ref: ev._memoria_ref || null })));
     }
 
     // ----- Sincronizador de Estado Global: tempo, clima e espaço avançam mesmo sem input humano -----
