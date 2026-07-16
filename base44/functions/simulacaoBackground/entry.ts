@@ -286,7 +286,9 @@ ${Object.entries(memoriasPorNome).map(([n, m]) => `- ${n}: ${m}`).join('\n')}`,
     });
 
     // ----- Local durável: guarda o que ficou para trás -----
+    const pathLocalCluster = localEx?.path || slugifyLocal(localNome);
     const patchLocal = {
+      path: pathLocalCluster,
       clima_local: cronica.clima_local || localEx?.clima_local || null,
       estado_atual: cronica.estado_do_local || localEx?.estado_atual || 'Ativo',
       personagens_presentes: membros.map((c) => c.name),
@@ -303,6 +305,7 @@ ${Object.entries(memoriasPorNome).map(([n, m]) => `- ${n}: ${m}`).join('\n')}`,
         ...patchLocal
       });
     }
+    await Promise.all(membros.map((c) => sdk.entities.Character.update(c.id, { localizacao_path: pathLocalCluster })));
 
     // ----- Espelha no Megagrafo apenas eventos fortes de bastidores (throttled: não a cada tique rotineiro) -----
     let grafo = null;
