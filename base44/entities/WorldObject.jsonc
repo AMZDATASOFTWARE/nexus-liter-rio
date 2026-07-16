@@ -1,0 +1,66 @@
+{
+  "name": "WorldObject",
+  "type": "object",
+  "properties": {
+    "universe_id": {
+      "type": "string",
+      "description": "Universo dono do objeto"
+    },
+    "name": {
+      "type": "string",
+      "description": "Nome do objeto"
+    },
+    "node_id": {
+      "type": "string",
+      "description": "node_id do GraphNode espelho (formato objeto_snake_case)"
+    },
+    "tipo": {
+      "type": "string",
+      "description": "arma | artefato | chave | documento | consumivel | ..."
+    },
+    "estado_atual": {
+      "type": "string",
+      "description": "Estado descritivo duravel (ex: enferrujada, carregada, quebrada em duas)"
+    },
+    "localizacao": {
+      "type": "string",
+      "description": "Cenario onde o objeto esta, quando nao esta com um personagem"
+    },
+    "posse_character_id": {
+      "type": "string",
+      "description": "ID do personagem que carrega o objeto agora"
+    },
+    "posse_character_name": {
+      "type": "string",
+      "description": "Nome do personagem que carrega o objeto agora"
+    },
+    "propriedades": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Propriedades/habilidades do objeto (ex: corta aco, brilha no escuro)"
+    },
+    "historico": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Log append-only de manipulacoes por turno"
+    },
+    "estado_simulacao": {
+      "type": "string",
+      "enum": [
+        "intacto",
+        "consumido",
+        "perdido",
+        "destruido"
+      ],
+      "description": "Ciclo de vida do objeto"
+    }
+  },
+  "required": [
+    "universe_id",
+    "name"
+  ]
+}
