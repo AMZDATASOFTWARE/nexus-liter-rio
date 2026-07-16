@@ -3,6 +3,7 @@ import { motion } from "framer-motion";
 import { Eye, Sparkles, Brain, Globe, ChevronDown, ChevronRight } from "lucide-react";
 
 export default function BlockItem({ block }) {
+  const [aberto, setAberto] = useState(false);
   if (block.type === "USER") {
     return (
       <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="flex justify-end">
@@ -13,7 +14,6 @@ export default function BlockItem({ block }) {
     );
   }
   if (block.type === "OFFSCREEN") {
-    const [aberto, setAberto] = useState(false);
     return (
       <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="flex justify-center">
         <div className="w-full max-w-[82%] rounded-xl border border-dashed border-cyan-500/20 bg-cyan-500/[0.03] px-4 py-3">
