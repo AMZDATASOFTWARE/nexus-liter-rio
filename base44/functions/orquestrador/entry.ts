@@ -1,5 +1,13 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.38';
 
+// ----- Casamento fuzzy de local: o texto de cenário é gerado livremente por LLM turno a turno — igualdade exata duplicaria o Local -----
+function mesmoLocal(a, b) {
+  const na = (a || '').toLowerCase().trim();
+  const nb = (b || '').toLowerCase().trim();
+  if (!na || !nb) return false;
+  return na === nb || na.includes(nb) || nb.includes(na);
+}
+
 // ----- Cobrador de Tributos: 1 Crédito de Mensagem por turno + Créditos de Integração conforme a intenção -----
 const CUSTO_INTEGRACAO_POR_INTENCAO = { Continuar: 5, Mudar_POV: 5, Criar_Nova_Historia: 10, Ramificar: 15, Colidir_Genesis: 15 };
 async function cobrarTributo(sdk, wallet, intencao) {
@@ -1328,9 +1336,10 @@ PERSONAGENS E AGENTES BASE44: ${characters.map((c) => `${c.name} → ${c.superag
           presentes.filter((c) => c.localizacao_atual !== cenarioNome).map((c) => sdk.entities.Character.update(c.id, { localizacao_atual: cenarioNome }))
         );
         if (cenarioNome) {
-          const locaisCena = await sdk.entities.Local.filter({ universe_id: story.universe_id, name: cenarioNome });
+          const locaisUniverso = await sdk.entities.Local.filter({ universe_id: story.universe_id });
+          const localCena = locaisUniverso.find((l) => mesmoLocal(l.name, cenarioNome));
           const patchCena = { personagens_presentes: cenaFinal, objetos_presentes: objetosUniverso.filter((o) => o.localizacao === cenarioNome).map((o) => o.name), clima_local: atual.condicao_climatica_atmosferica || null, estado_atual: 'Ativo' };
-          if (locaisCena.length) await sdk.entities.Local.update(locaisCena[0].id, patchCena);
+          if (localCena) await sdk.entities.Local.update(localCena.id, patchCena);
           else await sdk.entities.Local.create({ universe_id: story.universe_id, name: cenarioNome, descricao_persistente: 'Cenário ativo da narrativa.', ...patchCena });
         }
       } catch (_e) { /* Camada A é enhancement; nunca quebrar o turno */ }
