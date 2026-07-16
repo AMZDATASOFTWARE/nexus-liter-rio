@@ -1224,14 +1224,17 @@ No campo "prosa", escreva a continuação literária direta, em português. Sem 
           .filter(Boolean);
         if (primeirasMems.length) await sdk.entities.CharacterMemory.bulkCreate(primeirasMems);
       }
-      // Grava a lembrança de quem lembrou (alimenta o Superagente dele no futuro)
-      const memEvocMemoria = memoriasEvocadas
+      // Grava a lembrança de quem lembrou (alimenta o Superagente dele no futuro) e guarda o id p/ memoria_ref
+      const paresEvoc = memoriasEvocadas
         .map((ev) => {
           const c = characters.find((x) => x.name === ev.character_name);
-          return c ? { character_id: c.id, character_name: c.name, superagente_id: c.superagente_id || null, story_id: story.id, content: ev.memoria } : null;
+          return c ? { ev, registro: { character_id: c.id, character_name: c.name, superagente_id: c.superagente_id || null, story_id: story.id, content: ev.memoria } } : null;
         })
         .filter(Boolean);
-      if (memEvocMemoria.length) await sdk.entities.CharacterMemory.bulkCreate(memEvocMemoria);
+      if (paresEvoc.length) {
+        const criadasEvoc = await sdk.entities.CharacterMemory.bulkCreate(paresEvoc.map((p) => p.registro));
+        paresEvoc.forEach((p, i) => { p.ev._memoria_ref = criadasEvoc[i]?.id || null; });
+      }
     }
 
     // ----- Objetos duráveis: upsert do estado manipulado neste turno (Gap 3) -----
@@ -1300,7 +1303,7 @@ No campo "prosa", escreva a continuação literária direta, em português. Sem 
     await sdk.entities.NarrativeBlock.bulkCreate([
       { story_id: story.id, type: 'USER', content: texto },
       { story_id: story.id, type: 'AI', content: resultado.prosa, pov_character_name: resultado.pov || story.current_pov_name, psychological_state: resultado.estado_psicologico_pov || null, intencao: roteamento.intencao_usuario, agentes_acionados: agentes },
-      ...memoriasEvocadas.map((ev) => ({ story_id: story.id, type: 'MEMORIA', content: ev.memoria, memoria_character_name: ev.character_name }))
+      ...memoriasEvocadas.map((ev) => ({ story_id: story.id, type: 'MEMORIA', content: ev.memoria, memoria_character_name: ev.character_name, memoria_ref: ev._memoria_ref || null }))
     ]);
 
     const grafo = await arquitetoDeGrafos(sdk, story.universe_id, `PROSA DO TURNO: ${resultado.prosa}
