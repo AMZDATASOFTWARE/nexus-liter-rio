@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { base44 } from "@/api/base44Client";
-import { ArrowLeft, Loader2, Users, Network, Terminal, BookOpen, Coins } from "lucide-react";
+import { ArrowLeft, Loader2, Users, Network, Terminal, BookOpen, Coins, Globe } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import TokenStoreModal from "@/components/billing/TokenStoreModal";
 import CommandManagerSheet from "@/components/narrative/CommandManagerSheet";
@@ -55,6 +55,12 @@ export default function StoryPage({ storyIdProp }) {
     queryFn: () => base44.entities.Character.filter({ universe_id: story.universe_id }),
     enabled: !!story,
   });
+
+  const toggleBastidores = async () => {
+    if (!story) return;
+    await base44.entities.Story.update(id, { background_vivo: !story.background_vivo });
+    queryClient.invalidateQueries({ queryKey: ["story", id] });
+  };
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -119,6 +125,15 @@ export default function StoryPage({ storyIdProp }) {
           {!isNew && (
             <button onClick={compilarCapitulo} disabled={compilando} className="shrink-0 p-2 rounded-lg border border-zinc-800 text-zinc-500 hover:text-amber-300 hover:border-amber-500/40 transition-colors disabled:opacity-50" title="Compilar capítulo (Compilador de Cânone)">
               {compilando ? <Loader2 className="w-4 h-4 animate-spin" /> : <BookOpen className="w-4 h-4" />}
+            </button>
+          )}
+          {!isNew && (
+            <button
+              onClick={toggleBastidores}
+              className={`shrink-0 p-2 rounded-lg border transition-colors ${story?.background_vivo ? "border-cyan-500/40 text-cyan-300" : "border-zinc-800 text-zinc-500 hover:text-zinc-300"}`}
+              title={story?.background_vivo ? "Bastidores ativos: o mundo vive fora de cena a cada turno. Clique para desligar." : "Ativar Bastidores — personagens fora de cena passam a viver por conta própria"}
+            >
+              <Globe className="w-4 h-4" />
             </button>
           )}
           <button onClick={() => setShowStore(true)} className="shrink-0 p-2 rounded-lg border border-zinc-800 text-zinc-500 hover:text-amber-300 hover:border-amber-500/40 transition-colors" title="Mercado Multiversal — comprar créditos">
