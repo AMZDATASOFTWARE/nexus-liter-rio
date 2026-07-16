@@ -1,5 +1,42 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.38';
 
+// ----- Compactador de Memórias (espelho do orquestrador — evita que personagens de bastidores acumulem memória infinita) -----
+const LIMITE_MEMORIAS = 20;
+const MEMORIAS_RECENTES_PRESERVADAS = 10;
+async function compactarMemorias(sdk, character) {
+  const memorias = await sdk.entities.CharacterMemory.filter({ character_id: character.id }, 'created_date', 500);
+  if (memorias.length <= LIMITE_MEMORIAS) return null;
+  const antigas = memorias.slice(0, memorias.length - MEMORIAS_RECENTES_PRESERVADAS);
+  const res = await sdk.integrations.Core.InvokeLLM({
+    prompt: `Você é o Compactador de Memórias do Base 44. Analise o histórico bruto de vivências deste personagem (acumulado nos bastidores) e comprima-o em "Convicções", "Cicatrizes Psicológicas" ou "Habilidades Adquiridas", liberando espaço na memória de curto prazo do Superagente.
+
+DIRETRIZES:
+1. Mantenha os fatos essenciais (quem, o que, quando, onde); descarte detalhes de curto prazo.
+2. Se já existir memória core anterior, funda-a com as novas convicções sem perder cicatrizes já consolidadas.
+
+[PERSONAGEM]: ${character.name} (custodia: ${character.superagente_id || 'não alocado'})
+[MEMÓRIA CORE JÁ CONSOLIDADA]: ${(character.memoria_core || []).join(' | ') || 'nenhuma'}
+[HISTÓRICO RESUMIDO ANTERIOR]: ${character.eventos_historicos || 'nenhum'}
+
+[MEMÓRIAS BRUTAS PARA COMPACTAR]:
+${antigas.map((m) => `- ${m.content}`).join('\n')}`,
+    response_json_schema: {
+      type: 'object',
+      properties: {
+        memoria_core_atualizada: { type: 'array', items: { type: 'string' } },
+        eventos_historicos_resumidos: { type: 'string' }
+      },
+      required: ['memoria_core_atualizada', 'eventos_historicos_resumidos']
+    }
+  });
+  await sdk.entities.Character.update(character.id, {
+    memoria_core: res.memoria_core_atualizada,
+    eventos_historicos: res.eventos_historicos_resumidos
+  });
+  await Promise.all(antigas.map((m) => sdk.entities.CharacterMemory.delete(m.id)));
+  return { personagem: character.name, memorias_compactadas: antigas.length };
+}
+
 // ----- Motor de Bastidores: avança UM cluster off-screen por tique (amortizado no turno) -----
 // O mundo continua vivendo fora da cena que o autor observa: personagens em outros Locais
 // interagem, investigam e viajam. Cada tique custa 1 chamada de LLM (um cluster só).
@@ -162,6 +199,9 @@ ${Object.entries(memoriasPorNome).map(([n, m]) => `- ${n}: ${m}`).join('\n')}`,
       .filter(Boolean);
     if (memBastidores.length) await sdk.entities.CharacterMemory.bulkCreate(memBastidores);
 
+    // ----- Compacta quem estourou o limite de memórias acumulando só nos bastidores -----
+    const compactacoes = (await Promise.all(elenco.map((c) => compactarMemorias(sdk, c).catch(() => null)))).filter(Boolean);
+
     // ----- Atualiza estado de simulação, viagens e interações dos participantes -----
     const partidas = [];
     for (const m of cronica.memorias || []) {
@@ -213,6 +253,7 @@ ${Object.entries(memoriasPorNome).map(([n, m]) => `- ${n}: ${m}`).join('\n')}`,
       chegadas,
       partidas,
       memorias_registradas: memBastidores.length,
+      compactacoes,
       bloco: { id: blocoOff.id, type: blocoOff.type }
     });
   } catch (error) {
