@@ -89,6 +89,10 @@
       "type": "boolean",
       "description": "Se true, a hist\u00f3ria est\u00e1 rodando sozinha no modo Mundo Vivo"
     },
+    "background_vivo": {
+      "type": "boolean",
+      "description": "Se true, personagens fora de cena vivem em background (bastidores)"
+    },
     "personagem_em_foco_autonomo": {
       "type": "string",
       "description": "ID do personagem que est\u00e1 com a iniciativa da a\u00e7\u00e3o aut\u00f4noma agora"
