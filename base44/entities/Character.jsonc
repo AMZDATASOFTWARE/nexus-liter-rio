@@ -92,6 +92,22 @@
       ],
       "description": "Status de background"
     },
+    "localizacao_atual": {
+      "type": "string",
+      "description": "Onde o personagem esta no mundo, mesmo fora de cena (nome do Local)"
+    },
+    "viagem_destino": {
+      "type": "string",
+      "description": "Local de destino quando estado_simulacao = viajando"
+    },
+    "viagem_ticks_restantes": {
+      "type": "number",
+      "description": "Tiques de bastidores restantes ate chegar ao destino"
+    },
+    "ultimo_tick_offscreen": {
+      "type": "string",
+      "description": "Marca do ultimo processamento de bastidores deste personagem"
+    },
     "ultima_interacao_com": {
       "type": "array",
       "items": {
