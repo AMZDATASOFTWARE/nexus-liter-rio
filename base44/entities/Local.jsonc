@@ -10,6 +10,10 @@
       "type": "string",
       "description": "Nome do local/cenario"
     },
+    "path": {
+      "type": "string",
+      "description": "Endereco hierarquico estavel por slugs (ex: casa.quarto.banheiro) - nao usar o texto atmosferico livre para identidade"
+    },
     "descricao_persistente": {
       "type": "string",
       "description": "Descricao duravel do lugar"
