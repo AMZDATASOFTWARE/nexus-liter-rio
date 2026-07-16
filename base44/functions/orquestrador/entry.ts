@@ -1286,11 +1286,12 @@ No campo "prosa", escreva a continuação literária direta, em português. Sem 
     const sincronizacao = await sincronizarEstadoGlobal(sdk, universe.name, resultado.prosa, estadoAnterior);
     const atual = sincronizacao.atualizacao_de_estado;
 
+    const cenaFinal = [...new Set([...(resultado.personagens_em_cena || story.characters_in_scene || []), ...entrantesMemoria])];
     await sdk.entities.Story.update(story.id, {
       timeline_summary: resultado.resumo_timeline,
       current_pov_character_id: povChar?.id || story.current_pov_character_id,
       current_pov_name: resultado.pov || story.current_pov_name,
-      characters_in_scene: [...new Set([...(resultado.personagens_em_cena || story.characters_in_scene || []), ...entrantesMemoria])],
+      characters_in_scene: cenaFinal,
       data_hora_atual: atual.data_ou_hora_aproximada,
       cenario_atual: atual.cenario_focado,
       clima_atual: atual.condicao_climatica_atmosferica,
@@ -1314,10 +1315,36 @@ PERSONAGENS E AGENTES BASE44: ${characters.map((c) => `${c.name} → ${c.superag
     // Orquestrador de Renderização Visual: decide zoom, clusters e destaques do grafo na UI
     const render = await orquestradorRenderizacao(sdk, story, universe);
 
+    // ----- Camada A (Bastidores): mantém a localização dos presentes e o Local do cenário on-screen -----
+    let bastidores = null;
+    if (story.background_vivo) {
+      try {
+        const cenarioNome = atual.cenario_focado || story.cenario_atual;
+        const presentes = characters.filter((c) => cenaFinal.includes(c.name));
+        await Promise.all(
+          presentes.filter((c) => c.localizacao_atual !== cenarioNome).map((c) => sdk.entities.Character.update(c.id, { localizacao_atual: cenarioNome }))
+        );
+        if (cenarioNome) {
+          const locaisCena = await sdk.entities.Local.filter({ universe_id: story.universe_id, name: cenarioNome });
+          const patchCena = { personagens_presentes: cenaFinal, clima_local: atual.condicao_climatica_atmosferica || null, estado_atual: 'Ativo' };
+          if (locaisCena.length) await sdk.entities.Local.update(locaisCena[0].id, patchCena);
+          else await sdk.entities.Local.create({ universe_id: story.universe_id, name: cenarioNome, descricao_persistente: 'Cenário ativo da narrativa.', ...patchCena });
+        }
+      } catch (_e) { /* Camada A é enhancement; nunca quebrar o turno */ }
+
+      // ----- Amortização: um tique de bastidores por turno (admin/BYOK no V2) -----
+      if (isAdmin || modoByok) {
+        try {
+          const rb = await sdk.functions.invoke('simulacaoBackground', { storyId: story.id, modoByok: !!modoByok });
+          bastidores = rb?.data ?? rb;
+        } catch (_e) { bastidores = null; }
+      }
+    }
+
     const tributo = isAdmin
       ? { custo_mensagem: 0, custo_integracao: 0, aviso: 'Isento (Modo Admin)' }
       : await cobrarTributo(sdk, wallet, roteamento.intencao_usuario);
-    return Response.json({ roteamento, storyId: story.id, alocacoes, paradoxo, colisao, quarentenas, contaminacao, desintegracao, assimilacoes, veredicto, sincronizacao, grafo, render, compactacoes, tributo });
+    return Response.json({ roteamento, storyId: story.id, alocacoes, paradoxo, colisao, quarentenas, contaminacao, desintegracao, assimilacoes, veredicto, sincronizacao, grafo, render, compactacoes, bastidores, tributo });
   } catch (error) {
     return Response.json({ error: error.message }, { status: 500 });
   }
