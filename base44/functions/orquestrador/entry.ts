@@ -1338,7 +1338,9 @@ No campo "prosa", escreva a continuação literária direta, em português. Sem 
 
     // Sincronizador de Estado Global
     const estadoAnterior = `{ "linha_temporal_atual": "${universe.name}", "data_ou_hora_aproximada": "${story.data_hora_atual || story.era_inicial || 'desconhecida'}", "cenario_focado": "${story.cenario_atual || 'desconhecido'}", "condicao_climatica_atmosferica": "${story.clima_atual || story.clima_inicial || 'desconhecida'}" }`;
-    const sincronizacao = await sincronizarEstadoGlobal(sdk, universe.name, resultado.prosa, estadoAnterior);
+    const locaisUniverso = await sdk.entities.Local.filter({ universe_id: story.universe_id }).catch(() => []);
+    const registroLocais = locaisUniverso.map((l) => `"${l.name}" (path: ${l.path || slugifyLocal(l.name)})`).join('; ');
+    const sincronizacao = await sincronizarEstadoGlobal(sdk, universe.name, resultado.prosa, estadoAnterior, registroLocais);
     const atual = sincronizacao.atualizacao_de_estado;
 
     // Cena final = (cena anterior ∪ confirmados pelo Diretor ∪ entrantes) − saídas explicitas.
@@ -1384,11 +1386,11 @@ PERSONAGENS E AGENTES BASE44: ${characters.map((c) => `${c.name} → ${c.superag
           presentes.filter((c) => c.localizacao_atual !== cenarioNome).map((c) => sdk.entities.Character.update(c.id, { localizacao_atual: cenarioNome }))
         );
         if (cenarioNome) {
-          const locaisUniverso = await sdk.entities.Local.filter({ universe_id: story.universe_id });
-          const localCena = locaisUniverso.find((l) => mesmoLocal(l.name, cenarioNome));
-          const patchCena = { personagens_presentes: cenaFinal, objetos_presentes: objetosUniverso.filter((o) => o.localizacao === cenarioNome).map((o) => o.name), clima_local: atual.condicao_climatica_atmosferica || null, estado_atual: 'Ativo' };
-          if (localCena) await sdk.entities.Local.update(localCena.id, patchCena);
+          const { path: pathCena, localExistente } = resolverPathLocal(cenarioNome, sincronizacao.cenario_identidade, locaisUniverso);
+          const patchCena = { path: pathCena, personagens_presentes: cenaFinal, objetos_presentes: objetosUniverso.filter((o) => o.localizacao === cenarioNome).map((o) => o.name), clima_local: atual.condicao_climatica_atmosferica || null, estado_atual: 'Ativo' };
+          if (localExistente) await sdk.entities.Local.update(localExistente.id, patchCena);
           else await sdk.entities.Local.create({ universe_id: story.universe_id, name: cenarioNome, descricao_persistente: 'Cenário ativo da narrativa.', ...patchCena });
+          await Promise.all(presentes.map((c) => sdk.entities.Character.update(c.id, { localizacao_path: pathCena })));
         }
       } catch (_e) { /* Camada A é enhancement; nunca quebrar o turno */ }
 
