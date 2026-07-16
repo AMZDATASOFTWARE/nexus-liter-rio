@@ -1,5 +1,14 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.38';
 
+// ----- Casamento fuzzy de local: o texto de cenário é gerado livremente por LLM turno a turno
+// (ex: "Taverna do Cais" vira "Taverna do Cais (interior)") — igualdade exata quebra a reconciliação -----
+function mesmoLocal(a, b) {
+  const na = (a || '').toLowerCase().trim();
+  const nb = (b || '').toLowerCase().trim();
+  if (!na || !nb) return false;
+  return na === nb || na.includes(nb) || nb.includes(na);
+}
+
 // ----- Compactador de Memórias (espelho do orquestrador — evita que personagens de bastidores acumulem memória infinita) -----
 const LIMITE_MEMORIAS = 20;
 const MEMORIAS_RECENTES_PRESERVADAS = 10;
@@ -105,7 +114,7 @@ Deno.serve(async (req) => {
       chegadas.push({ nome: c.name, destino });
 
       // ----- Reconciliação (os caminhos se cruzam): chegou onde o autor está olhando -----
-      if (destino && destino === story.cenario_atual) {
+      if (destino && mesmoLocal(destino, story.cenario_atual)) {
         const novaCena = [...new Set([...(story.characters_in_scene || []), c.name])];
         await sdk.entities.Story.update(story.id, { characters_in_scene: novaCena });
         story.characters_in_scene = novaCena;
@@ -139,7 +148,7 @@ ${vividoFora.map((m) => `- ${m.content}`).join('\n')}`,
     const clusters = new Map();
     for (const c of offscreen) {
       if (c.estado_simulacao === 'viajando') continue;
-      if (chegadas.some((ch) => ch.nome === c.name && ch.destino === story.cenario_atual)) continue;
+      if (chegadas.some((ch) => ch.nome === c.name && mesmoLocal(ch.destino, story.cenario_atual))) continue;
       const loc = c.localizacao_atual || 'Paradeiro desconhecido';
       if (loc === story.cenario_atual) continue;
       if (!clusters.has(loc)) clusters.set(loc, []);
