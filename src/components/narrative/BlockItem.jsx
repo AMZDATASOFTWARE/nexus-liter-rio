@@ -1,6 +1,6 @@
 import React from "react";
 import { motion } from "framer-motion";
-import { Eye, Sparkles, Brain } from "lucide-react";
+import { Eye, Sparkles, Brain, Globe } from "lucide-react";
 
 export default function BlockItem({ block }) {
   if (block.type === "USER") {
@@ -8,6 +8,18 @@ export default function BlockItem({ block }) {
       <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="flex justify-end">
         <div className="max-w-[85%] md:max-w-[70%] rounded-2xl rounded-br-sm bg-indigo-500/10 border border-indigo-400/20 px-5 py-3.5">
           <p className="text-sm text-indigo-100/90 leading-relaxed">{block.content}</p>
+        </div>
+      </motion.div>
+    );
+  }
+  if (block.type === "OFFSCREEN") {
+    return (
+      <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="flex justify-center">
+        <div className="w-full max-w-[82%] rounded-xl border border-dashed border-cyan-500/20 bg-cyan-500/[0.03] px-4 py-3">
+          <div className="flex items-center gap-1.5 mb-1 text-[10px] uppercase tracking-[0.2em] text-cyan-400/60">
+            <Globe className="w-3 h-3" /> Nos bastidores{block.memoria_character_name ? ` · ${block.memoria_character_name}` : ""}
+          </div>
+          <p className="text-[13px] leading-relaxed text-zinc-400/90 italic whitespace-pre-wrap">{block.content}</p>
         </div>
       </motion.div>
     );
