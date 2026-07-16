@@ -388,13 +388,14 @@ Em "prosa", escreva apenas o parágrafo literário, em português, sem avisos si
     const momentoAtual = direcao.momento_atualizado || story.data_hora_atual;
     const cenarioAtual = direcao.cenario_atualizado || story.cenario_atual;
     const climaAtual = direcao.clima_atualizado || story.clima_atual;
+    const cenaFinal = entrantesMemoria.length ? [...new Set([...(story.characters_in_scene || []), ...entrantesMemoria])] : (story.characters_in_scene || []);
     await sdk.entities.Story.update(story.id, {
       personagem_em_foco_autonomo: personagemFoco.id,
       data_hora_atual: momentoAtual,
       cenario_atual: cenarioAtual,
       clima_atual: climaAtual,
       notas_grafo: direcao.notas_grafo || story.notas_grafo,
-      ...(entrantesMemoria.length ? { characters_in_scene: [...new Set([...(story.characters_in_scene || []), ...entrantesMemoria])] } : {})
+      ...(entrantesMemoria.length ? { characters_in_scene: cenaFinal } : {})
     });
 
     // ----- Conecta a ação autônoma ao Megagrafo (payload idêntico ao fluxo manual) -----
@@ -409,6 +410,31 @@ PERSONAGENS E AGENTES BASE44: ${elencoAtual.map((c) => `${c.name} → ${c.supera
 
     // ----- Atualiza a câmera e o zoom do Grafo na UI -----
     const render = await orquestradorRenderizacao(sdk, story, universe);
+
+    // ----- Camada A (Bastidores): mantém a localização dos presentes e o Local do cenário on-screen -----
+    let bastidores = null;
+    if (story.background_vivo) {
+      try {
+        const presentes = elencoAtual.filter((c) => cenaFinal.includes(c.name));
+        await Promise.all(
+          presentes.filter((c) => c.localizacao_atual !== cenarioAtual).map((c) => sdk.entities.Character.update(c.id, { localizacao_atual: cenarioAtual }))
+        );
+        if (cenarioAtual) {
+          const locaisCena = await sdk.entities.Local.filter({ universe_id: story.universe_id, name: cenarioAtual });
+          const patchCena = { personagens_presentes: cenaFinal, clima_local: climaAtual || null, estado_atual: 'Ativo' };
+          if (locaisCena.length) await sdk.entities.Local.update(locaisCena[0].id, patchCena);
+          else await sdk.entities.Local.create({ universe_id: story.universe_id, name: cenarioAtual, descricao_persistente: 'Cenário ativo da narrativa.', ...patchCena });
+        }
+      } catch (_e) { /* Camada A é enhancement; nunca quebrar o turno */ }
+
+      // ----- Amortização: um tique de bastidores por turno autônomo (admin/BYOK no V2) -----
+      if (isAdmin || modoByok) {
+        try {
+          const rb = await sdk.functions.invoke('simulacaoBackground', { storyId: story.id, modoByok: !!modoByok });
+          bastidores = rb?.data ?? rb;
+        } catch (_e) { bastidores = null; }
+      }
+    }
 
     // ----- Cobrança do turno autônomo -----
     let tributo = null;
@@ -434,6 +460,7 @@ PERSONAGENS E AGENTES BASE44: ${elencoAtual.map((c) => `${c.name} → ${c.supera
       memoriasRegistradas: memoriasNovas.length,
       grafo,
       render,
+      bastidores,
       tributo
     });
   } catch (error) {
