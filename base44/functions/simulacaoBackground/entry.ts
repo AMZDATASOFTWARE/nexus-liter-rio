@@ -103,10 +103,26 @@ Deno.serve(async (req) => {
         const novaCena = [...new Set([...(story.characters_in_scene || []), c.name])];
         await sdk.entities.Story.update(story.id, { characters_in_scene: novaCena });
         story.characters_in_scene = novaCena;
+
+        // Briefing legível: o que ele viveu fora de cena, desde o último tique de bastidores
+        const desde = c.ultimo_tick_offscreen || null;
+        const todasMemorias = await sdk.entities.CharacterMemory.filter({ character_id: c.id }, '-created_date', 20);
+        const vividoFora = desde ? todasMemorias.filter((m) => m.created_date > desde) : todasMemorias.slice(0, 5);
+        let briefing = `${c.name} chega a ${destino}, vindo de fora de cena.`;
+        if (vividoFora.length) {
+          const resumoChegada = await sdk.integrations.Core.InvokeLLM({
+            prompt: `Você é o Cronista dos Bastidores. ${c.name} estava fora da cena principal e acaba de chegar a "${destino}". Resuma em 1-2 frases, em terceira pessoa, o que ele viveu enquanto esteve ausente, para o autor que está acompanhando a história ficar sabendo. Seja conciso e literário.
+
+[MEMÓRIAS VIVIDAS FORA DE CENA, MAIS RECENTES PRIMEIRO]:
+${vividoFora.map((m) => `- ${m.content}`).join('\n')}`,
+            response_json_schema: { type: 'object', properties: { resumo: { type: 'string' } }, required: ['resumo'] }
+          }).catch(() => null);
+          if (resumoChegada?.resumo) briefing = `${c.name} chega a ${destino}. ${resumoChegada.resumo}`;
+        }
         await sdk.entities.NarrativeBlock.create({
           story_id: story.id,
           type: 'OFFSCREEN',
-          content: `${c.name} chega a ${destino}, vindo de fora de cena.`,
+          content: briefing,
           memoria_character_name: c.name,
           agentes_acionados: ['Motor_de_Bastidores']
         });
