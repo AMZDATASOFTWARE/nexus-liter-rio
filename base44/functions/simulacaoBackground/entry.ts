@@ -9,6 +9,28 @@ function mesmoLocal(a, b) {
   return na === nb || na.includes(nb) || nb.includes(na);
 }
 
+// ----- Endereço hierárquico de Local: comparar por path (prefixo por segmento), não por texto atmosférico -----
+function slugifyLocal(s) {
+  return (s || '')
+    .toLowerCase()
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_|_$/g, '')
+    .slice(0, 60);
+}
+function pathContem(a, b) {
+  if (!a || !b) return false;
+  const pa = a.split('.'), pb = b.split('.');
+  const [curto, longo] = pa.length <= pb.length ? [pa, pb] : [pb, pa];
+  return curto.every((seg, i) => seg === longo[i]);
+}
+// Resolve o path de um nome de local a partir do registro conhecido (sem julgamento de hierarquia aqui — isso é feito pelo Diretor na Camada A)
+function pathDoNome(nome, locaisUniverso) {
+  if (!nome) return null;
+  const existente = locaisUniverso.find((l) => l.name.toLowerCase().trim() === nome.toLowerCase().trim()) || locaisUniverso.find((l) => mesmoLocal(l.name, nome));
+  return existente ? (existente.path || slugifyLocal(existente.name)) : slugifyLocal(nome);
+}
+
 // ----- Compactador de Memórias (espelho do orquestrador — evita que personagens de bastidores acumulem memória infinita) -----
 const LIMITE_MEMORIAS = 20;
 const MEMORIAS_RECENTES_PRESERVADAS = 10;
@@ -78,6 +100,8 @@ Deno.serve(async (req) => {
 
     const universe = await sdk.entities.Universe.get(story.universe_id);
     const characters = await sdk.entities.Character.filter({ universe_id: story.universe_id });
+    const locais = await sdk.entities.Local.filter({ universe_id: story.universe_id });
+    const pathCenaAtual = pathDoNome(story.cenario_atual, locais);
     const emCena = new Set([...(story.characters_in_scene || []), story.current_pov_name].filter(Boolean));
     const offscreen = characters.filter((c) => !emCena.has(c.name));
     if (!offscreen.length) return Response.json({ skipped: 'todos os personagens estão em cena' });
@@ -114,7 +138,9 @@ Deno.serve(async (req) => {
       chegadas.push({ nome: c.name, destino });
 
       // ----- Reconciliação (os caminhos se cruzam): chegou onde o autor está olhando -----
-      if (destino && mesmoLocal(destino, story.cenario_atual)) {
+      const pathDestino = pathDoNome(destino, locais);
+      await sdk.entities.Character.update(c.id, { localizacao_path: pathDestino });
+      if (destino && pathContem(pathDestino, pathCenaAtual)) {
         const novaCena = [...new Set([...(story.characters_in_scene || []), c.name])];
         await sdk.entities.Story.update(story.id, { characters_in_scene: novaCena });
         story.characters_in_scene = novaCena;
@@ -148,9 +174,9 @@ ${vividoFora.map((m) => `- ${m.content}`).join('\n')}`,
     const clusters = new Map();
     for (const c of offscreen) {
       if (c.estado_simulacao === 'viajando') continue;
-      if (chegadas.some((ch) => ch.nome === c.name && mesmoLocal(ch.destino, story.cenario_atual))) continue;
+      if (chegadas.some((ch) => ch.nome === c.name && pathContem(pathDoNome(ch.destino, locais), pathCenaAtual))) continue;
       const loc = c.localizacao_atual || 'Paradeiro desconhecido';
-      if (mesmoLocal(loc, story.cenario_atual)) continue;
+      if (pathContem(c.localizacao_path || pathDoNome(loc, locais), pathCenaAtual)) continue;
       if (!clusters.has(loc)) clusters.set(loc, []);
       clusters.get(loc).push(c);
     }
@@ -158,7 +184,6 @@ ${vividoFora.map((m) => `- ${m.content}`).join('\n')}`,
     if (!candidatos.length) return Response.json({ chegadas, cluster: null, skipped: 'nenhuma cena de bastidores ativa' });
 
     // ----- Round-robin justo: avança o Local processado há mais tempo -----
-    const locais = await sdk.entities.Local.filter({ universe_id: story.universe_id });
     const tickPorLocal = new Map(locais.map((l) => [l.name, l.ultimo_tick || '']));
     candidatos.sort((a, b) => (tickPorLocal.get(a[0]) || '').localeCompare(tickPorLocal.get(b[0]) || ''));
     const [localNome, membros] = candidatos[0];
