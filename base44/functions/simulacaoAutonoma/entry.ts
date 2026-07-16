@@ -1,11 +1,39 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.38';
 
-// ----- Casamento fuzzy de local: o texto de cenário é gerado livremente por LLM turno a turno — igualdade exata duplicaria o Local -----
+// ----- Casamento fuzzy de local (fallback): usado só quando o Diretor não resolve a identidade hierárquica -----
 function mesmoLocal(a, b) {
   const na = (a || '').toLowerCase().trim();
   const nb = (b || '').toLowerCase().trim();
   if (!na || !nb) return false;
   return na === nb || na.includes(nb) || nb.includes(na);
+}
+
+// ----- Endereço hierárquico de Local: slug estável (não o texto atmosférico livre que muda a cada turno) -----
+function slugifyLocal(s) {
+  return (s || '')
+    .toLowerCase()
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_|_$/g, '')
+    .slice(0, 60);
+}
+// Um path "contém ou é o mesmo que" o outro: prefixo por SEGMENTO (casa.sala e casa.quarto NUNCA batem; casa e casa.quarto batem)
+function pathContem(a, b) {
+  if (!a || !b) return false;
+  const pa = a.split('.'), pb = b.split('.');
+  const [curto, longo] = pa.length <= pb.length ? [pa, pb] : [pb, pa];
+  return curto.every((seg, i) => seg === longo[i]);
+}
+// Resolve o path de um cenário: reaproveita Local existente (mesmo lugar ou dentro de um já conhecido) ou cria um path novo
+function resolverPathLocal(cenarioNome, identidade, locaisUniverso) {
+  const porNome = new Map(locaisUniverso.map((l) => [l.name.toLowerCase().trim(), l]));
+  const mesmo = identidade?.mesmo_local_que ? porNome.get(identidade.mesmo_local_que.toLowerCase().trim()) : null;
+  if (mesmo) return { path: mesmo.path || slugifyLocal(mesmo.name), localExistente: mesmo };
+  const pai = identidade?.sublocal_dentro_de ? porNome.get(identidade.sublocal_dentro_de.toLowerCase().trim()) : null;
+  if (pai) return { path: `${pai.path || slugifyLocal(pai.name)}.${slugifyLocal(cenarioNome)}`, localExistente: null };
+  const existenteFallback = locaisUniverso.find((l) => mesmoLocal(l.name, cenarioNome));
+  if (existenteFallback) return { path: existenteFallback.path || slugifyLocal(existenteFallback.name), localExistente: existenteFallback };
+  return { path: slugifyLocal(cenarioNome), localExistente: null };
 }
 
 // ----- Motor do Relógio: processa um turno autônomo do Mundo Vivo (sem input humano) -----
@@ -212,6 +240,10 @@ ${ultimosBlocos}`,
       ? objetosPresentes.map((o) => `- "${o.name}" (${o.tipo || 'objeto'}) — estado: ${o.estado_atual || 'intacto'}${o.posse_character_name ? ` | com ${o.posse_character_name}` : o.localizacao ? ` | em ${o.localizacao}` : ''}`).join('\n')
       : 'nenhum objeto durável registrado nesta cena';
 
+    // ----- Registro de Locais conhecidos (identidade hierárquica do cenário) -----
+    const locaisUniverso = await sdk.entities.Local.filter({ universe_id: story.universe_id }).catch(() => []);
+    const registroLocais = locaisUniverso.map((l) => `"${l.name}" (path: ${l.path || slugifyLocal(l.name)})`).join('; ') || 'nenhum ainda';
+
     // ----- Diretor Narrativo: transforma a intenção bruta em prosa literária -----
     const direcao = await sdk.integrations.Core.InvokeLLM({
       prompt: `O personagem ${personagemFoco.name} decidiu: '${acaoBruta}'. Escreva isso como o próximo parágrafo de um livro de ficção. Atualize o cenário e faça o texto fluir. Respeite as regras do universo.
@@ -223,6 +255,9 @@ O METRÔNOMO DO DIRETOR: A prosa DEVE refletir estritamente estes pesos matemát
 - [AMBIENTAÇÃO: ${ritmoAtual.peso_ambientacao}%]: Se for alto, gaste parágrafos detalhando a estética e textura do mundo.
 
 SINCRONIZADOR DE ESTADO GLOBAL: após escrever a prosa, atualize as variáveis de ambiente do mundo. Aplique o decurso natural do tempo em "momento_atualizado" (minutos, horas ou mais, conforme a cena) — o mundo NÃO pode ficar congelado no tempo. Registre também em "notas_grafo" instruções curtas para o Arquiteto de Grafos sobre o cenário visual da interface.
+
+IDENTIDADE HIERÁRQUICA DO LOCAL ("cenario_identidade"): o texto do cenário muda de turno a turno, mas fisicamente pode ser o MESMO lugar. Compare "cenario_atualizado" com os [LOCAIS JÁ CONHECIDOS] e preencha "mesmo_local_que" (nome EXATO se for fisicamente o mesmo lugar de antes) ou "sublocal_dentro_de" (nome EXATO se for uma área DENTRO de um Local já conhecido, ex: o quarto dentro da casa). Deixe ambos vazios se for um lugar novo e independente. NUNCA invente nomes fora da lista.
+[LOCAIS JÁ CONHECIDOS NESTE UNIVERSO]: ${registroLocais}
 
 EXPANSÃO DE LORE: se a prosa mencionar personagens INÉDITOS (que não estejam entre os presentes listados), liste-os em "novos_personagens" com descrição e estado psicológico para cadastro no sistema.
 
@@ -242,6 +277,7 @@ Em "prosa", escreva apenas o parágrafo literário, em português, sem avisos si
           cenario_atualizado: { type: 'string' },
           clima_atualizado: { type: 'string' },
           momento_atualizado: { type: 'string', description: 'Data/hora aproximada da narrativa após o decurso natural do tempo neste turno' },
+          cenario_identidade: { type: 'object', properties: { mesmo_local_que: { type: 'string' }, sublocal_dentro_de: { type: 'string' } } },
           notas_grafo: { type: 'string', description: 'Instruções curtas para o Arquiteto de Grafos sobre o cenário visual' },
           novos_personagens: {
             type: 'array',
