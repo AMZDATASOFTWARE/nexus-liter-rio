@@ -424,7 +424,7 @@ PERSONAGENS E AGENTES BASE44: ${elencoAtual.map((c) => `${c.name} → ${c.supera
         );
         if (cenarioAtual) {
           const locaisCena = await sdk.entities.Local.filter({ universe_id: story.universe_id, name: cenarioAtual });
-          const patchCena = { personagens_presentes: cenaFinal, clima_local: climaAtual || null, estado_atual: 'Ativo' };
+          const patchCena = { personagens_presentes: cenaFinal, objetos_presentes: objetosUniverso.filter((o) => o.localizacao === cenarioAtual).map((o) => o.name), clima_local: climaAtual || null, estado_atual: 'Ativo' };
           if (locaisCena.length) await sdk.entities.Local.update(locaisCena[0].id, patchCena);
           else await sdk.entities.Local.create({ universe_id: story.universe_id, name: cenarioAtual, descricao_persistente: 'Cenário ativo da narrativa.', ...patchCena });
         }
