@@ -1,0 +1,45 @@
+{
+  "name": "Local",
+  "type": "object",
+  "properties": {
+    "universe_id": {
+      "type": "string",
+      "description": "Universo dono do local"
+    },
+    "name": {
+      "type": "string",
+      "description": "Nome do local/cenario"
+    },
+    "descricao_persistente": {
+      "type": "string",
+      "description": "Descricao duravel do lugar"
+    },
+    "clima_local": {
+      "type": "string",
+      "description": "Clima/atmosfera atual deste local (independente da cena principal)"
+    },
+    "estado_atual": {
+      "type": "string",
+      "description": "Estado do local: Ativo | Em ruinas | Abandonado | ..."
+    },
+    "personagens_presentes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Nomes dos personagens atualmente neste local"
+    },
+    "ultimo_evento": {
+      "type": "string",
+      "description": "Resumo do ultimo acontecimento off-screen neste local"
+    },
+    "ultimo_tick": {
+      "type": "string",
+      "description": "Timestamp ISO do ultimo processamento de bastidores (round-robin)"
+    }
+  },
+  "required": [
+    "universe_id",
+    "name"
+  ]
+}
