@@ -11,7 +11,8 @@
       "enum": [
         "USER",
         "AI",
-        "SYSTEM"
+        "SYSTEM",
+        "MEMORIA"
       ],
       "description": "Origem do bloco"
     },
@@ -37,6 +38,14 @@
         "type": "string"
       },
       "description": "Superagentes acionados neste turno"
+    },
+    "memoria_character_name": {
+      "type": "string",
+      "description": "Personagem dono da lembranca (blocos type=MEMORIA)"
+    },
+    "memoria_ref": {
+      "type": "string",
+      "description": "ID da CharacterMemory de origem (opcional)"
     }
   },
   "required": [
