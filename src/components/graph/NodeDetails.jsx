@@ -18,6 +18,9 @@ export default function NodeDetails({ node, edges, nodes, onClose }) {
       </div>
       <div className="overflow-y-auto px-4 pb-4 space-y-2 grow [scrollbar-width:thin] [scrollbar-color:#3f3f46_transparent] [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:bg-zinc-700 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-track]:bg-transparent">
         {node.descricao_breve && <p className="text-xs text-zinc-400 leading-relaxed">{node.descricao_breve}</p>}
+        {node.estado_atual && (
+          <p className="text-[11px] text-zinc-500">Estado: <span className="text-zinc-300">{node.estado_atual}</span></p>
+        )}
         {node.pertence_ao_agente_base44 && (
           <p className="text-[11px] text-violet-300/70">Custódia: {node.pertence_ao_agente_base44}</p>
         )}
