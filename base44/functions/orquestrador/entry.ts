@@ -1329,7 +1329,7 @@ PERSONAGENS E AGENTES BASE44: ${characters.map((c) => `${c.name} → ${c.superag
         );
         if (cenarioNome) {
           const locaisCena = await sdk.entities.Local.filter({ universe_id: story.universe_id, name: cenarioNome });
-          const patchCena = { personagens_presentes: cenaFinal, clima_local: atual.condicao_climatica_atmosferica || null, estado_atual: 'Ativo' };
+          const patchCena = { personagens_presentes: cenaFinal, objetos_presentes: objetosUniverso.filter((o) => o.localizacao === cenarioNome).map((o) => o.name), clima_local: atual.condicao_climatica_atmosferica || null, estado_atual: 'Ativo' };
           if (locaisCena.length) await sdk.entities.Local.update(locaisCena[0].id, patchCena);
           else await sdk.entities.Local.create({ universe_id: story.universe_id, name: cenarioNome, descricao_persistente: 'Cenário ativo da narrativa.', ...patchCena });
         }
