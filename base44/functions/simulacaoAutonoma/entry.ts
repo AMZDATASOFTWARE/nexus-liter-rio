@@ -214,7 +214,7 @@ EXPANSÃO DE LORE: se a prosa mencionar personagens INÉDITOS (que não estejam 
 [ÚLTIMOS 3 BLOCOS NARRATIVOS]:
 ${ultimosBlocos}
 
-Em "prosa", escreva apenas o parágrafo literário, em português, sem avisos sistêmicos. Em "memorias_registradas", gere a memória subjetiva do evento para o personagem que agiu E para cada outro presente na cena (cada um só percebe o que viveu).`,
+Em "prosa", escreva apenas o parágrafo literário, em português, sem avisos sistêmicos. Em "memorias_registradas", gere a memória subjetiva do evento para o personagem que agiu E para cada outro presente na cena (cada um só percebe o que viveu). Em "memorias_evocadas": se a cena organicamente faz um personagem reviver uma lembrança (gatilho sensorial, objeto, nome, lugar), retorne-a em primeira pessoa dele — será renderizada como flashback destacado; só evoque quando o gatilho existir de fato. Se a lembrança evocar alguém que NÃO está cadastrado e pode reaparecer (vivo, relevante), preencha "personagem_evocado" com pode_reaparecer=true; se está morto e não volta, false.`,
       response_json_schema: {
         type: 'object',
         properties: {
@@ -237,6 +237,19 @@ Em "prosa", escreva apenas o parágrafo literário, em português, sem avisos si
               type: 'object',
               properties: { name: { type: 'string' }, memoria: { type: 'string' } },
               required: ['name', 'memoria']
+            }
+          },
+          memorias_evocadas: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                character_name: { type: 'string', description: 'Personagem em cena que reviveu a lembrança' },
+                memoria: { type: 'string', description: 'A lembrança em 1a pessoa (vira um flashback destacado)' },
+                gatilho: { type: 'string', description: 'O que na cena disparou a lembrança' },
+                personagem_evocado: { type: 'object', properties: { name: { type: 'string' }, papel_na_memoria: { type: 'string' }, pode_reaparecer: { type: 'boolean', description: 'true se pode reaparecer fisicamente no mundo' } } }
+              },
+              required: ['character_name', 'memoria']
             }
           }
         },
@@ -268,6 +281,44 @@ Em "prosa", escreva apenas o parágrafo literário, em português, sem avisos si
       .filter(Boolean);
     if (memoriasNovas.length) await sdk.entities.CharacterMemory.bulkCreate(memoriasNovas);
 
+    // ----- Memória Evocada (flashback legível) + Personagem nascido de memória -----
+    const memoriasEvocadas = direcao.memorias_evocadas || [];
+    let entrantesMemoria = [];
+    if (memoriasEvocadas.length) {
+      const nomesExist = new Set(elencoAtual.map((c) => c.name));
+      const aCriar = [];
+      for (const ev of memoriasEvocadas) {
+        const pe = ev.personagem_evocado;
+        if (pe && pe.pode_reaparecer && pe.name && !nomesExist.has(pe.name) && !aCriar.some((x) => x.name === pe.name)) {
+          aCriar.push({
+            universe_id: story.universe_id,
+            name: pe.name,
+            description: `[Nascido de Memória de ${ev.character_name}] ${pe.papel_na_memoria || ''}`.trim(),
+            primeira_memoria: ev.memoria,
+            motivo_alocacao: 'Nascido de Memória (Mundo Vivo)',
+            estado_simulacao: 'ocioso'
+          });
+          nomesExist.add(pe.name);
+        }
+      }
+      if (aCriar.length) {
+        const criados = await sdk.entities.Character.bulkCreate(aCriar);
+        elencoAtual = elencoAtual.concat(criados);
+        entrantesMemoria = criados.map((c) => c.name);
+        const primeirasMems = criados
+          .map((c) => (c.primeira_memoria ? { character_id: c.id, character_name: c.name, story_id: story.id, content: c.primeira_memoria } : null))
+          .filter(Boolean);
+        if (primeirasMems.length) await sdk.entities.CharacterMemory.bulkCreate(primeirasMems);
+      }
+      const memEvoc = memoriasEvocadas
+        .map((ev) => {
+          const c = elencoAtual.find((x) => x.name === ev.character_name);
+          return c ? { character_id: c.id, character_name: c.name, superagente_id: c.superagente_id || null, story_id: story.id, content: ev.memoria } : null;
+        })
+        .filter(Boolean);
+      if (memEvoc.length) await sdk.entities.CharacterMemory.bulkCreate(memEvoc);
+    }
+
     // ----- Novo bloco narrativo autônomo -----
     const bloco = await sdk.entities.NarrativeBlock.create({
       story_id: story.id,
@@ -279,6 +330,11 @@ Em "prosa", escreva apenas o parágrafo literário, em português, sem avisos si
       agentes_acionados: ['Motor_do_Relogio', `Superagente_${personagemFoco.name}`, 'Diretor_Narrativo']
     });
 
+    // Flashbacks evocados viram blocos legíveis logo após a prosa autônoma
+    if (memoriasEvocadas.length) {
+      await sdk.entities.NarrativeBlock.bulkCreate(memoriasEvocadas.map((ev) => ({ story_id: story.id, type: 'MEMORIA', content: ev.memoria, memoria_character_name: ev.character_name })));
+    }
+
     // ----- Sincronizador de Estado Global: tempo, clima e espaço avançam mesmo sem input humano -----
     const momentoAtual = direcao.momento_atualizado || story.data_hora_atual;
     const cenarioAtual = direcao.cenario_atualizado || story.cenario_atual;
@@ -288,13 +344,15 @@ Em "prosa", escreva apenas o parágrafo literário, em português, sem avisos si
       data_hora_atual: momentoAtual,
       cenario_atual: cenarioAtual,
       clima_atual: climaAtual,
-      notas_grafo: direcao.notas_grafo || story.notas_grafo
+      notas_grafo: direcao.notas_grafo || story.notas_grafo,
+      ...(entrantesMemoria.length ? { characters_in_scene: [...new Set([...(story.characters_in_scene || []), ...entrantesMemoria])] } : {})
     });
 
     // ----- Conecta a ação autônoma ao Megagrafo (payload idêntico ao fluxo manual) -----
     const grafo = await arquitetoDeGrafos(sdk, story.universe_id, `PROSA DO TURNO: ${direcao.prosa}
 REAÇÕES DOS SUPERAGENTES: [${personagemFoco.name} — iniciativa autônoma]: ${acaoBruta}
 MEMÓRIAS REGISTRADAS: ${(direcao.memorias_registradas || []).map((m) => `${m.name}: ${m.memoria}`).join(' | ') || 'nenhuma'}
+MEMÓRIAS EVOCADAS: ${memoriasEvocadas.map((ev) => `${ev.character_name} reviveu: ${ev.memoria}${ev.personagem_evocado?.name ? ` (evocou ${ev.personagem_evocado.name})` : ''}`).join(' | ') || 'nenhuma'}
 ESTADO GLOBAL ATUAL: momento "${momentoAtual}", cenário "${cenarioAtual}", clima "${climaAtual}"
 NOTAS DO SINCRONIZADOR PARA O GRAFO: ${direcao.notas_grafo || 'nenhuma'}
 PERSONAGENS E AGENTES BASE44: ${elencoAtual.map((c) => `${c.name} → ${c.superagente_id || '?'}`).join('; ')}`);
