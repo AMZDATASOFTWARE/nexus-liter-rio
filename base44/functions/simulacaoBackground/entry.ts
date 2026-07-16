@@ -150,7 +150,7 @@ ${vividoFora.map((m) => `- ${m.content}`).join('\n')}`,
       if (c.estado_simulacao === 'viajando') continue;
       if (chegadas.some((ch) => ch.nome === c.name && mesmoLocal(ch.destino, story.cenario_atual))) continue;
       const loc = c.localizacao_atual || 'Paradeiro desconhecido';
-      if (loc === story.cenario_atual) continue;
+      if (mesmoLocal(loc, story.cenario_atual)) continue;
       if (!clusters.has(loc)) clusters.set(loc, []);
       clusters.get(loc).push(c);
     }
