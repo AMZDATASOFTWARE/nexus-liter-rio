@@ -1066,6 +1066,16 @@ Escreva o System Prompt formatado em Markdown, começando com "Você é o autor 
       return Response.json({ roteamento, storyId: story.id, paradoxo, colisao, quarentenas, contaminacao, desintegracao, veredicto, system_prompt_master: adaptacao.system_prompt_master });
     }
 
+    // ----- Objetos duráveis presentes na cena (Gap 3: persistência de objetos) -----
+    let objetosUniverso = [];
+    try { objetosUniverso = await sdk.entities.WorldObject.filter({ universe_id: story.universe_id }); } catch (_e) { objetosUniverso = []; }
+    const nomesEmCenaObj = new Set([...(story.characters_in_scene || []), story.current_pov_name].filter(Boolean));
+    const idsEmCenaObj = new Set(characters.filter((c) => nomesEmCenaObj.has(c.name)).map((c) => c.id));
+    const objetosPresentes = objetosUniverso.filter((o) => (o.localizacao && o.localizacao === story.cenario_atual) || (o.posse_character_id && idsEmCenaObj.has(o.posse_character_id)));
+    const objetosInjecao = objetosPresentes.length
+      ? objetosPresentes.map((o) => `- "${o.name}" (${o.tipo || 'objeto'}) — estado: ${o.estado_atual || 'intacto'}${o.posse_character_name ? ` | com ${o.posse_character_name}` : o.localizacao ? ` | em ${o.localizacao}` : ''}${(o.propriedades || []).length ? ` | ${(o.propriedades || []).join(', ')}` : ''}`).join('\n')
+      : 'nenhum objeto durável registrado nesta cena';
+
     // ----- Orquestrador Narrativo Principal -----
     const resultado = await sdk.integrations.Core.InvokeLLM({
       prompt: `Você é o Orquestrador Narrativo Principal. Sua função é receber o texto do usuário, identificar quais personagens estão em cena, consultar os "Superagentes Hospedeiros" do Base 44 para obter as reações reais e psicológicas desses personagens, e então tecer tudo isso em uma prosa literária imersiva e de alta qualidade.
@@ -1108,6 +1118,8 @@ ${viajantes.filter((v) => v.diretriz_comportamental).map((v) => `- ${v.name} (ad
 - Diretriz de narração: ${veredicto.diretriz_para_o_diretor_narrativo}
 [RESPOSTAS DOS SUPERAGENTES (REACÕES/MEMÓRIAS)]:
 ${dadosAgentesEmCena}
+[OBJETOS PRESENTES E SEU ESTADO DURÁVEL — respeite-os: um item quebrado continua quebrado; um item que outro personagem carrega não está livre para pegar]:
+${objetosInjecao}
 [CLIMA/ANO/LINHA TEMPORAL]: Universo "${universe.name}" | ${story.data_hora_atual || story.era_inicial || '?'} | Cenário: ${story.cenario_atual || '?'} | Clima: ${story.clima_atual || story.clima_inicial || '?'} | Linha do tempo: ${story.timeline_summary || 'início'}
 [ESTADO ATUAL]: ${estado}
 [CONTEXTO DO ORQUESTRADOR]: ${params.contexto_imediato_a_repassar || ''}${conhecimento}
@@ -1115,7 +1127,7 @@ ${dadosAgentesEmCena}
 [TEXTO DO USUÁRIO]:
 "${texto}"
 
-No campo "prosa", escreva a continuação literária direta, em português. Sem introduções, sem avisos sistêmicos. Apenas a pura narrativa. Em "memorias_registradas", gere a memória subjetiva do evento para CADA personagem presente ou afetado na cena (cada um só percebe o que viveu — perspectivas isoladas). Em "memorias_evocadas": se a cena natural e organicamente faz um personagem reviver uma lembrança (gatilho sensorial, objeto, nome, lugar), retorne essa lembrança em primeira pessoa dele — será renderizada como um flashback destacado; escreva-a como prosa literária curta, não force, só evoque quando o gatilho existir de fato no texto. Se a lembrança evocar uma pessoa que NÃO está entre os personagens já cadastrados e a história plausivelmente permite que ela reapareça (viva, relevante, apenas perdida de vista), preencha "personagem_evocado" com pode_reaparecer=true (o sistema forjará a personalidade dela coerente com a lembrança); se está morta e não voltará, pode_reaparecer=false.`,
+No campo "prosa", escreva a continuação literária direta, em português. Sem introduções, sem avisos sistêmicos. Apenas a pura narrativa. Em "memorias_registradas", gere a memória subjetiva do evento para CADA personagem presente ou afetado na cena (cada um só percebe o que viveu — perspectivas isoladas). Em "memorias_evocadas": se a cena natural e organicamente faz um personagem reviver uma lembrança (gatilho sensorial, objeto, nome, lugar), retorne essa lembrança em primeira pessoa dele — será renderizada como um flashback destacado; escreva-a como prosa literária curta, não force, só evoque quando o gatilho existir de fato no texto. Se a lembrança evocar uma pessoa que NÃO está entre os personagens já cadastrados e a história plausivelmente permite que ela reapareça (viva, relevante, apenas perdida de vista), preencha "personagem_evocado" com pode_reaparecer=true (o sistema forjará a personalidade dela coerente com a lembrança); se está morta e não voltará, pode_reaparecer=false. Em "objetos_manipulados": se um objeto for usado, alterado, movido, quebrado ou trocar de dono neste turno, ou se um objeto inédito com peso narrativo surgir, registre-o (name, novo_estado e, quando aplicável, nova_localizacao / novo_dono_character_name / acao). Só objetos com peso narrativo — não catalogue poeira.`,
       response_json_schema: {
         type: 'object',
         properties: {
@@ -1127,6 +1139,7 @@ No campo "prosa", escreva a continuação literária direta, em português. Sem 
           personagens_em_cena: { type: 'array', items: { type: 'string' } },
           memorias_registradas: { type: 'array', items: { type: 'object', properties: { name: { type: 'string' }, memoria: { type: 'string', description: 'Memória subjetiva do evento na perspectiva deste personagem' } }, required: ['name', 'memoria'] } },
           memorias_evocadas: { type: 'array', items: { type: 'object', properties: { character_name: { type: 'string', description: 'Personagem em cena que reviveu a lembrança' }, memoria: { type: 'string', description: 'A lembrança em 1a pessoa (vira um flashback destacado)' }, gatilho: { type: 'string', description: 'O que na cena disparou a lembrança' }, personagem_evocado: { type: 'object', properties: { name: { type: 'string' }, papel_na_memoria: { type: 'string' }, pode_reaparecer: { type: 'boolean', description: 'true se a história pode trazê-lo fisicamente de volta ao mundo' } } } }, required: ['character_name', 'memoria'] } },
+          objetos_manipulados: { type: 'array', items: { type: 'object', properties: { name: { type: 'string' }, tipo: { type: 'string', description: 'preenchido só se objeto inédito' }, novo_estado: { type: 'string' }, nova_localizacao: { type: 'string' }, novo_dono_character_name: { type: 'string' }, acao: { type: 'string', description: 'empunhou, quebrou, escondeu...' } }, required: ['name'] } },
           resumo_timeline: { type: 'string' }
         },
         required: ['prosa', 'resumo_timeline']
@@ -1221,6 +1234,42 @@ No campo "prosa", escreva a continuação literária direta, em português. Sem 
       if (memEvocMemoria.length) await sdk.entities.CharacterMemory.bulkCreate(memEvocMemoria);
     }
 
+    // ----- Objetos duráveis: upsert do estado manipulado neste turno (Gap 3) -----
+    const objetosManipulados = resultado.objetos_manipulados || [];
+    if (objetosManipulados.length) {
+      try {
+        const porNomeObj = new Map(objetosUniverso.map((o) => [o.name, o]));
+        for (const om of objetosManipulados) {
+          if (!om.name) continue;
+          const dono = om.novo_dono_character_name ? characters.find((c) => c.name === om.novo_dono_character_name) : null;
+          const ex = porNomeObj.get(om.name);
+          const logLinha = `[${story.data_hora_atual || '?'}] ${om.acao || 'alterado'}${om.novo_estado ? ` → ${om.novo_estado}` : ''}`;
+          if (ex) {
+            await sdk.entities.WorldObject.update(ex.id, {
+              estado_atual: om.novo_estado || ex.estado_atual,
+              localizacao: dono ? null : (om.nova_localizacao || ex.localizacao),
+              posse_character_id: dono ? dono.id : (om.nova_localizacao ? null : ex.posse_character_id),
+              posse_character_name: dono ? dono.name : (om.nova_localizacao ? null : ex.posse_character_name),
+              historico: [...(ex.historico || []), logLinha].slice(-50)
+            });
+          } else {
+            await sdk.entities.WorldObject.create({
+              universe_id: story.universe_id,
+              name: om.name,
+              node_id: `objeto_${om.name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '').slice(0, 50)}`,
+              tipo: om.tipo || 'objeto',
+              estado_atual: om.novo_estado || 'intacto',
+              localizacao: dono ? null : (om.nova_localizacao || story.cenario_atual || null),
+              posse_character_id: dono ? dono.id : null,
+              posse_character_name: dono ? dono.name : null,
+              historico: [logLinha],
+              estado_simulacao: 'intacto'
+            });
+          }
+        }
+      } catch (_e) { /* objetos são enhancement; nunca quebrar o turno */ }
+    }
+
     // Compactador de Memórias: comprime o histórico de quem estourou o limite
     const idsComMemoriaNova = new Set(novasMemorias.map((m) => m.character_id));
     const compactacoes = (
@@ -1257,6 +1306,7 @@ No campo "prosa", escreva a continuação literária direta, em português. Sem 
 REAÇÕES DOS SUPERAGENTES: ${dadosAgentesEmCena}
 MEMÓRIAS REGISTRADAS: ${(resultado.memorias_registradas || []).map((m) => `${m.name}: ${m.memoria}`).join(' | ') || 'nenhuma'}
 MEMÓRIAS EVOCADAS: ${memoriasEvocadas.map((ev) => `${ev.character_name} reviveu: ${ev.memoria}${ev.personagem_evocado?.name ? ` (evocou ${ev.personagem_evocado.name})` : ''}`).join(' | ') || 'nenhuma'}
+OBJETOS MANIPULADOS: ${objetosManipulados.map((o) => `${o.name}: ${o.acao || 'alterado'}${o.novo_estado ? ` (${o.novo_estado})` : ''}`).join(' | ') || 'nenhum'}
 ESTADO GLOBAL ATUAL: momento "${atual.data_ou_hora_aproximada}", cenário "${atual.cenario_focado}", clima "${atual.condicao_climatica_atmosferica}"
 NOTAS DO SINCRONIZADOR PARA O GRAFO: ${sincronizacao.notas_para_o_grafo}
 PERSONAGENS E AGENTES BASE44: ${characters.map((c) => `${c.name} → ${c.superagente_id || '?'}`).join('; ')}`);
