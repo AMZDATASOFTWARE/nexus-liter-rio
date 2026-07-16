@@ -94,7 +94,11 @@
     },
     "localizacao_atual": {
       "type": "string",
-      "description": "Onde o personagem esta no mundo, mesmo fora de cena (nome do Local)"
+      "description": "Onde o personagem esta no mundo, mesmo fora de cena (nome do Local, texto de exibicao)"
+    },
+    "localizacao_path": {
+      "type": "string",
+      "description": "Endereco hierarquico estavel (Local.path) do lugar onde o personagem esta - usado para comparar presenca/ausencia de cena, nao o texto livre"
     },
     "viagem_destino": {
       "type": "string",
