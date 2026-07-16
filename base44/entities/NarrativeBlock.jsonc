@@ -12,7 +12,8 @@
         "USER",
         "AI",
         "SYSTEM",
-        "MEMORIA"
+        "MEMORIA",
+        "OFFSCREEN"
       ],
       "description": "Origem do bloco"
     },
