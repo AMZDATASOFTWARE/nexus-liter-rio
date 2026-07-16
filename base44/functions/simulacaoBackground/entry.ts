@@ -69,6 +69,21 @@ Deno.serve(async (req) => {
 
     const agora = new Date().toISOString();
 
+    // ----- Relógio Global: o Sincronizador de Estado (mesmo árbitro do fluxo manual) mantém o tempo coerente -----
+    const sincroBastidores = await sdk.integrations.Core.InvokeLLM({
+      prompt: `Você é o Sincronizador de Estado Global do Base 44. Um tique de bastidores (eventos fora da cena principal) está prestes a rodar. Diga quanto tempo narrativo, no máximo, pode se passar neste tique sem descolar do ritmo da cena principal que o autor está acompanhando.
+
+[MOMENTO ATUAL DA HISTÓRIA]: ${story.data_hora_atual || '?'}
+[CENÁRIO PRINCIPAL ATUAL]: ${story.cenario_atual || '?'}
+
+Retorne um incremento de tempo curto e plausível (minutos a poucas horas, nunca dias), coerente com o momento atual.`,
+      response_json_schema: {
+        type: 'object',
+        properties: { incremento_sugerido: { type: 'string', description: 'ex: 20 minutos, meia hora, 2 horas' } },
+        required: ['incremento_sugerido']
+      }
+    }).catch(() => null);
+
     // ----- Relógio de viagens: decrementa quem está a caminho (sem LLM, barato) -----
     const chegadas = [];
     for (const c of offscreen) {
@@ -169,6 +184,7 @@ ${Object.entries(memoriasPorNome).map(([n, m]) => `- ${n}: ${m}`).join('\n')}`,
           resumo_bastidores: { type: 'string', description: '1 a 3 frases do que aconteceu neste local enquanto o autor olhava para outro lugar' },
           clima_local: { type: 'string', description: 'Clima/atmosfera atual deste local' },
           estado_do_local: { type: 'string', description: 'Estado do local após o evento (Ativo, Em ruinas, etc.)' },
+          momento_local_decorrido: { type: 'string', description: 'Quanto tempo se passou neste local durante o tique (ex: 20 minutos, algumas horas) — arbitre pouco tempo, os bastidores não podem correr mais rápido que a cena principal' },
           memorias: {
             type: 'array',
             items: {
@@ -243,6 +259,13 @@ ${Object.entries(memoriasPorNome).map(([n, m]) => `- ${n}: ${m}`).join('\n')}`,
         name: localNome,
         descricao_persistente: `Local de bastidores do universo "${universe.name}".`,
         ...patchLocal
+      });
+    }
+
+    // ----- Aplica o decurso de tempo dos bastidores ao relógio global da história -----
+    if (sincroBastidores?.incremento_sugerido || cronica.momento_local_decorrido) {
+      await sdk.entities.Story.update(story.id, {
+        data_hora_atual: `${story.data_hora_atual || ''} (+${cronica.momento_local_decorrido || sincroBastidores.incremento_sugerido} nos bastidores de ${localNome})`.trim()
       });
     }
 
