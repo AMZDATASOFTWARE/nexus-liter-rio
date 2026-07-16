@@ -1,5 +1,13 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.38';
 
+// ----- Casamento fuzzy de local: o texto de cenário é gerado livremente por LLM turno a turno — igualdade exata duplicaria o Local -----
+function mesmoLocal(a, b) {
+  const na = (a || '').toLowerCase().trim();
+  const nb = (b || '').toLowerCase().trim();
+  if (!na || !nb) return false;
+  return na === nb || na.includes(nb) || nb.includes(na);
+}
+
 // ----- Motor do Relógio: processa um turno autônomo do Mundo Vivo (sem input humano) -----
 const CUSTO_MENSAGEM_AUTONOMO = 1;
 const CUSTO_INTEGRACAO_AUTONOMO = 2;
@@ -423,9 +431,10 @@ PERSONAGENS E AGENTES BASE44: ${elencoAtual.map((c) => `${c.name} → ${c.supera
           presentes.filter((c) => c.localizacao_atual !== cenarioAtual).map((c) => sdk.entities.Character.update(c.id, { localizacao_atual: cenarioAtual }))
         );
         if (cenarioAtual) {
-          const locaisCena = await sdk.entities.Local.filter({ universe_id: story.universe_id, name: cenarioAtual });
+          const locaisUniverso = await sdk.entities.Local.filter({ universe_id: story.universe_id });
+          const localCena = locaisUniverso.find((l) => mesmoLocal(l.name, cenarioAtual));
           const patchCena = { personagens_presentes: cenaFinal, objetos_presentes: objetosUniverso.filter((o) => o.localizacao === cenarioAtual).map((o) => o.name), clima_local: climaAtual || null, estado_atual: 'Ativo' };
-          if (locaisCena.length) await sdk.entities.Local.update(locaisCena[0].id, patchCena);
+          if (localCena) await sdk.entities.Local.update(localCena.id, patchCena);
           else await sdk.entities.Local.create({ universe_id: story.universe_id, name: cenarioAtual, descricao_persistente: 'Cenário ativo da narrativa.', ...patchCena });
         }
       } catch (_e) { /* Camada A é enhancement; nunca quebrar o turno */ }
