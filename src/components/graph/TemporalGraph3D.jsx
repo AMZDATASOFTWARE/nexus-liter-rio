@@ -141,7 +141,7 @@ export default function TemporalGraph3D({ nos, arestas, layers, wormholes, onSel
       renderer.domElement.removeEventListener("click", onClick);
       controls.dispose();
       renderer.dispose();
-      el.removeChild(renderer.domElement);
+      if (el.contains(renderer.domElement)) el.removeChild(renderer.domElement);
     };
   }, [nos, arestas, layers, wormholes]);
 
