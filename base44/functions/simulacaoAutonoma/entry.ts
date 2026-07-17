@@ -465,7 +465,8 @@ PERSONAGENS E AGENTES BASE44: ${elencoAtual.map((c) => `${c.name} → ${c.supera
         const subconjunto = direcao.cenario_identidade?.sublocal_dentro_de && (direcao.cenario_identidade?.personagens_no_sublocal || []).length
           ? direcao.cenario_identidade.personagens_no_sublocal
           : null;
-        const presentes = elencoAtual.filter((c) => cenaFinal.includes(c.name) && (!subconjunto || subconjunto.includes(c.name)));
+        const noSubconjunto = (nome) => subconjunto.some((n) => n === nome || (n.length > 3 && (n.includes(nome) || nome.includes(n))));
+        const presentes = elencoAtual.filter((c) => cenaFinal.includes(c.name) && (!subconjunto || noSubconjunto(c.name)));
         await Promise.all(
           presentes.filter((c) => c.localizacao_atual !== cenarioAtual).map((c) => sdk.entities.Character.update(c.id, { localizacao_atual: cenarioAtual }))
         );
