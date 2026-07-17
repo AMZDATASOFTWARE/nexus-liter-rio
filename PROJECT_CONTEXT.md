@@ -3,7 +3,7 @@
 > Checkpoint documental do estado do projeto. Atualizado a cada bloco relevante de trabalho concluído.
 > Mantido em paridade em 3 lugares: este arquivo local, a cópia no sandbox Base44, e a memória do projeto (Claude).
 
-**Última atualização: 2026-07-17 — Fix de tela branca no Workspace (grafo 3D) + Error Boundary como rede de segurança geral.**
+**Última atualização: 2026-07-17 — Ilustrações por capítulo: abertura, memória, bastidores e objetos na margem.**
 
 ## O que foi feito nesta sessão
 
@@ -124,6 +124,18 @@ Usuário reportou que, na tela `/workspace/:id` (StoryPage + GraphPage lado a la
 - `WorkspacePage.jsx`: cada painel (`PanelView`) ganhou seu **próprio** `ErrorBoundary` (com `key={view}` pra resetar ao trocar de aba) — um erro no painel do Megagrafo não derruba mais o painel de escrita ao lado.
 - Verificado: ESLint limpo, vite build verde, texto da UI de erro confirmado no bundle.
 
+## Ilustrações por capítulo — abertura, memória, bastidores, objetos (2026-07-17)
+
+A pedido do usuário, com fotos de referência de um livro clássico ilustrado (lápis/sepia). Decisões: layout/formato das fotos é referência, mas o **estilo visual continua o catálogo por universo** (não fica sepia fixo); até **2 ilustrações secundárias por capítulo**; as **4 categorias de uma vez** (abertura, memória, bastidores, objeto). Checkpoint `6a5a7f1c2bd8b0f345d3c59f`.
+
+- **Descoberta chave**: `compilarCanone` só devolvia um blob de texto — a origem de cada parágrafo (cena/memória/bastidores) se perdia na compilação, tornando impossível saber onde ilustrar. Resolvido adicionando `segmentos` rotulados ao schema, mantendo `texto_compilado_markdown` (derivado juntando os segmentos) pro editor continuar idêntico.
+- **`base44/functions/compilarCanone/entry.ts`**: novo campo `segmentos: [{tipo: 'cena'|'memoria'|'offscreen', texto_markdown, personagem_memoria?, local_offscreen?}]` no `response_json_schema`, com diretriz de segmentação no prompt. `exportarLivro/entry.ts` repassa `segmentos` (antes descartava).
+- **Nova função `base44/functions/ilustrarCapitulo/entry.ts`**: reaproveita o catálogo de 8 estilos + `Universe.estilo_visual_ilustracao` (mesma lógica de `ilustrarCapa`). Casa `WorldObject` mencionados nos segmentos de cena; 1 `InvokeLLM` de curadoria escolhe a cena de abertura + até 2 secundárias (memoria/offscreen/objeto), cada uma com Content Prompt + âncora de texto; enquadramento diferenciado por tipo (memória = vinheta onírica mais suave; bastidores = cena paralela vista de longe; objeto = estudo isolado estilo prancha naturalista; abertura = plano geral). Gera cada imagem via `Core.GenerateImage`, baixa/converte pra base64 no backend.
+- **Novo `src/components/narrative/ilustracaoRecorte.js`**: `aplicarVinhetaOrganica(base64, formato)` — máscara de alpha com 3 lóbulos deslocados (não um círculo perfeito) que esmaece as bordas até transparente; jsPDF respeita o canal alpha, então a página aparece por trás — sem formato quadrado. Presets `retangular_suave` (abertura) e `organico` (secundárias).
+- **`src/components/narrative/bookPdf.js`** (reescrito): agrupa o corpo por capítulo (`<h1>` ou um único grupo se não houver nenhum, pra livros de capítulo único); abertura de capítulo reaproveita a mesma técnica full-bleed+gradiente da capa (extraída pro helper `desenharIlustracaoNoTopo`); objetos vão numa faixa lateral fixa de 30mm; memória/bastidores entram em "modo flutuante" (imagem à esquerda do parágrafo, texto flui ao lado em largura reduzida — wrap por caixa retângular, não por contorno exato); âncora não encontrada (ex: autor editou o texto depois) cai no primeiro parágrafo do capítulo como fallback, nunca descarta a imagem silenciosamente.
+- **Frontend**: `PolishingStudio.jsx` ganhou o botão **"Ilustrar capítulos"** (separado da capa, opcional, com barra de progresso por capítulo); `BookExporter.jsx`/`compilarLivro.js` passam a expor os `capitulos` crus (com `segmentos`) além do `livro` já unido; `universeId` agora trafega StoryPage → BookExporter → PolishingStudio.
+- Verificado: `node --check` nas 3 funções tocadas/novas, ESLint limpo, `vite build` verde, textos de UI confirmados no bundle. **Não testei geração real** — até 3 imagens por capítulo, custo/tempo reais; teste combinado com o usuário após o Publish, numa história pequena do universo-laboratório primeiro.
+
 ## Universo de teste (mantido de propósito)
 
 **`Teste_Gap4_Bastidores`** (universe_id `6a591ccbaa734aa83561f81c`) — história `Teste Gap 4 — Bastidores` (`6a591cf3607a644cc7790ce3`), com personagens `Lyra_Teste`, `Bram_Teste`, `Nara_Teste`, `Doran_Teste`, `Irmã de Lyra` (nascida de memória). **Mantido intencionalmente** como laboratório pra testes futuros de Mundo Vivo/hierarquia de locais — não é um universo de conteúdo real do usuário.
@@ -141,6 +153,7 @@ Tudo commitado no sandbox e sincronizado no GitHub (`main`). **Publish no builde
 
 ## Checkpoints Base44 desta sessão (mais recente primeiro)
 
+- `6a5a7f1c2bd8b0f345d3c59f` — ilustrações por capítulo (abertura + memória + bastidores + objetos na margem)
 - `6a5a72366b22c3c60c1ee51f` — fix tela branca no Workspace (removeChild sem containment check) + ErrorBoundary
 - `6a5a6f37f166c421d4f10e04` — referências de personagem (CharacterAsset) para consistência entre capítulos
 - `6a5a2e11557d90cb20b2ddf6` — capa full-bleed com recorte cover + gradiente + PDF assíncrono
