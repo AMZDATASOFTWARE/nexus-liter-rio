@@ -185,7 +185,7 @@ SISTEMA DE VOZ ÚNICA — IDENTIDADE VERBAL E MENTAL DE ${character.name}:
 [VERBOSIDADE (1 a 10)]: ${character.verbosidade || 5}
 [ESTILO DE PENSAMENTO]: ${character.estilo_pensamento || 'Lógico'}
 [PESO DE INTROSPECÇÃO DA CENA ATUAL]: ${ritmoAtual.peso_introspeccao}%
-${descricaoAparencia ? `[REFERÊNCIA CÔNICA DE APARÊNCIA — respeite estritamente ao descrever este personagem fisicamente]: ${descricaoAparencia}` : ''}
+${descricaoAparencia ? `[REFERÊNCIA CANÔNICA DE APARÊNCIA — respeite estritamente ao descrever este personagem fisicamente]: ${descricaoAparencia}` : ''}
 
 DIRETRIZES DE ATUAÇÃO OBRIGATÓRIAS (METHOD ACTING):
 - LEI DA VERBOSIDADE: Se sua verbosidade for baixa (1-3), você DEVE responder com no máximo 10 palavras, focando em linguagem corporal. Se for alta (8-10), seja extremamente prolixo, divague e fale demais.
