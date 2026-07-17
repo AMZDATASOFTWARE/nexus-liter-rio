@@ -86,6 +86,8 @@ Tudo commitado no sandbox e sincronizado no GitHub (`main`). **Publish no builde
 
 ## Checkpoints Base44 desta sessão (mais recente primeiro)
 
+- `6a59da120da843ca77b9c3eb` — fundo da landing reescrito: malha de espaço-tempo curvável + estrelas + multiverso com gravidade real
+- `6a59c59554077b861bbf2aca` — fix do tamanho do canvas do fundo (w-full h-full)
 - `6a59c43452283ff45c4547a8` — landing page pública /landing com fundo de partículas-grafo
 - `6a59ae33f9ed5c719e37d9bf` — botão "Reset do Sistema" (/admin) + Mega Livro de backup automático
 - `6a598f6c4b59f7090410bcc4` — livro PDF: compilação por capítulos sem limite + 3 estilos + MEMORIA/OFFSCREEN no compilador
