@@ -2,11 +2,12 @@ import React, { useState } from "react";
 import { createPortal } from "react-dom";
 import ReactQuill from "react-quill";
 import confetti from "canvas-confetti";
-import { X, BookDown, ImagePlus, Loader2, RefreshCw } from "lucide-react";
+import { X, BookDown, ImagePlus, Loader2, RefreshCw, BookImage } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
 import { base44 } from "@/api/base44Client";
 import { generateBookPdf } from "./bookPdf";
+import { aplicarVinhetaOrganica } from "./ilustracaoRecorte";
 
 // Converte o Markdown do Compilador de Cânone em HTML inicial para o editor
 function markdownParaHtml(md) {
@@ -38,12 +39,16 @@ const NOMES_ESTILO = {
   cosmico_etereo: "Cósmico Etéreo",
 };
 
-export default function PolishingStudio({ livro, storyId, onClose }) {
+export default function PolishingStudio({ livro, storyId, universeId, capitulosBrutos, onClose }) {
   const [html, setHtml] = useState(() => markdownParaHtml(livro.texto_compilado_markdown));
   const [gerandoCapa, setGerandoCapa] = useState(false);
   const [capa, setCapa] = useState(null); // { imagemBase64, estilo }
+  const [progressoIlustracao, setProgressoIlustracao] = useState(null); // { atual, total }
+  const [ilustracoesPorCapitulo, setIlustracoesPorCapitulo] = useState([]);
   const [publicando, setPublicando] = useState(false);
   const { toast } = useToast();
+  const ilustrandoCapitulos = progressoIlustracao !== null;
+  const podeIlustrarCapitulos = !!(storyId && universeId && capitulosBrutos?.length);
 
   const gerarCapa = async () => {
     setGerandoCapa(true);
@@ -58,10 +63,49 @@ export default function PolishingStudio({ livro, storyId, onClose }) {
     }
   };
 
+  const ilustrarCapitulos = async () => {
+    setProgressoIlustracao({ atual: 0, total: capitulosBrutos.length });
+    const resultado = [];
+    try {
+      for (let i = 0; i < capitulosBrutos.length; i++) {
+        setProgressoIlustracao({ atual: i + 1, total: capitulosBrutos.length });
+        const cap = capitulosBrutos[i];
+        try {
+          const res = await base44.functions.invoke("ilustrarCapitulo", {
+            universeId,
+            storyId,
+            segmentos: cap.segmentos || [],
+            tituloCapitulo: cap.titulo_capitulo,
+          });
+          const abertura = res.data.abertura?.imagemBase64
+            ? { imagemBase64: await aplicarVinhetaOrganica(res.data.abertura.imagemBase64, "retangular_suave") }
+            : null;
+          const secundarias = await Promise.all(
+            (res.data.secundarias || []).map(async (s) => ({
+              ...s,
+              imagemBase64: await aplicarVinhetaOrganica(s.imagemBase64, "organico"),
+            }))
+          );
+          resultado.push({ abertura, secundarias });
+        } catch (_e) {
+          resultado.push(null); // esse capítulo fica sem ilustração, mas não trava os demais
+        }
+      }
+      setIlustracoesPorCapitulo(resultado);
+      const comIlustracao = resultado.filter(Boolean).length;
+      toast({
+        title: "Capítulos ilustrados",
+        description: `${comIlustracao} de ${capitulosBrutos.length} capítulo(s) ganharam ilustrações.`,
+      });
+    } finally {
+      setProgressoIlustracao(null);
+    }
+  };
+
   const publicar = async () => {
     setPublicando(true);
     try {
-      await generateBookPdf(livro, html, capa?.imagemBase64);
+      await generateBookPdf(livro, html, capa?.imagemBase64, ilustracoesPorCapitulo);
       confetti({ particleCount: 180, spread: 90, origin: { y: 0.6 } });
       setTimeout(() => confetti({ particleCount: 120, spread: 120, origin: { x: 0.2, y: 0.4 } }), 300);
       setTimeout(() => confetti({ particleCount: 120, spread: 120, origin: { x: 0.8, y: 0.4 } }), 600);
@@ -92,11 +136,11 @@ export default function PolishingStudio({ livro, storyId, onClose }) {
       </header>
 
       {storyId && (
-        <div className="shrink-0 px-6 py-3 border-b border-zinc-900 flex items-center gap-3">
+        <div className="shrink-0 px-6 py-3 border-b border-zinc-900 flex flex-wrap items-center gap-3">
           {capa ? (
             <>
               <img src={capa.imagemBase64} alt="Capa gerada" className="h-14 w-14 object-cover rounded-md border border-zinc-800" />
-              <div className="min-w-0 flex-1">
+              <div className="min-w-0">
                 <p className="text-xs text-zinc-400">
                   Capa gerada · estilo <span className="text-amber-300">{NOMES_ESTILO[capa.estilo] || capa.estilo}</span>
                 </p>
@@ -123,6 +167,31 @@ export default function PolishingStudio({ livro, storyId, onClose }) {
               {gerandoCapa ? <Loader2 className="w-3.5 h-3.5 mr-2 animate-spin" /> : <ImagePlus className="w-3.5 h-3.5 mr-2" />}
               {gerandoCapa ? "Gerando ilustração..." : "Gerar ilustração de capa"}
             </Button>
+          )}
+
+          {podeIlustrarCapitulos && (
+            <div className="flex items-center gap-2">
+              <span className="text-zinc-800">|</span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={ilustrarCapitulos}
+                disabled={ilustrandoCapitulos}
+                className="border-zinc-800 text-zinc-400 hover:text-amber-300 hover:border-amber-500/40"
+              >
+                {ilustrandoCapitulos ? <Loader2 className="w-3.5 h-3.5 mr-2 animate-spin" /> : <BookImage className="w-3.5 h-3.5 mr-2" />}
+                {ilustrandoCapitulos
+                  ? `Ilustrando capítulo ${progressoIlustracao.atual} de ${progressoIlustracao.total}...`
+                  : ilustracoesPorCapitulo.length
+                  ? "Reilustrar capítulos"
+                  : "Ilustrar capítulos"}
+              </Button>
+              {!ilustrandoCapitulos && ilustracoesPorCapitulo.length > 0 && (
+                <p className="text-xs text-zinc-500">
+                  {ilustracoesPorCapitulo.filter(Boolean).length} de {ilustracoesPorCapitulo.length} capítulo(s) ilustrados
+                </p>
+              )}
+            </div>
           )}
         </div>
       )}
