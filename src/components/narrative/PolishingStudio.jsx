@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { createPortal } from "react-dom";
 import ReactQuill from "react-quill";
 import confetti from "canvas-confetti";
 import { X, BookDown, ImagePlus, Loader2, RefreshCw } from "lucide-react";
@@ -64,7 +65,7 @@ export default function PolishingStudio({ livro, storyId, onClose }) {
     toast({ title: "Download iniciado!", description: "Seu livro foi lapidado e publicado. Parabéns, autor." });
   };
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-50 bg-[#08080f]/95 backdrop-blur-sm flex flex-col">
       <header className="shrink-0 px-6 py-4 flex items-center justify-between border-b border-zinc-900">
         <div className="min-w-0">
@@ -127,6 +128,7 @@ export default function PolishingStudio({ livro, storyId, onClose }) {
         .polishing-paper .ql-container { border: none; font-family: Spectral, Georgia, serif; font-size: 16px; color: #27241d; }
         .polishing-paper .ql-editor { padding: 48px 56px 64px; min-height: 60vh; line-height: 1.8; }
       `}</style>
-    </div>
+    </div>,
+    document.body
   );
 }
