@@ -256,7 +256,7 @@ O METRÔNOMO DO DIRETOR: A prosa DEVE refletir estritamente estes pesos matemát
 
 SINCRONIZADOR DE ESTADO GLOBAL: após escrever a prosa, atualize as variáveis de ambiente do mundo. Aplique o decurso natural do tempo em "momento_atualizado" (minutos, horas ou mais, conforme a cena) — o mundo NÃO pode ficar congelado no tempo. Registre também em "notas_grafo" instruções curtas para o Arquiteto de Grafos sobre o cenário visual da interface.
 
-IDENTIDADE HIERÁRQUICA DO LOCAL ("cenario_identidade"): o texto do cenário muda de turno a turno, mas fisicamente pode ser o MESMO lugar. Compare "cenario_atualizado" com os [LOCAIS JÁ CONHECIDOS] e preencha "mesmo_local_que" (nome EXATO se for fisicamente o mesmo lugar de antes) ou "sublocal_dentro_de" (nome EXATO se for uma área DENTRO de um Local já conhecido, ex: o quarto dentro da casa). Deixe ambos vazios se for um lugar novo e independente. NUNCA invente nomes fora da lista.
+IDENTIDADE HIERÁRQUICA DO LOCAL ("cenario_identidade"): o texto do cenário muda de turno a turno, mas fisicamente pode ser o MESMO lugar. Compare "cenario_atualizado" com os [LOCAIS JÁ CONHECIDOS] e preencha "mesmo_local_que" (nome EXATO se for fisicamente o mesmo lugar de antes) ou "sublocal_dentro_de" (nome EXATO se for uma área DENTRO de um Local já conhecido, ex: o quarto dentro da casa). Deixe ambos vazios se for um lugar novo e independente. NUNCA invente nomes fora da lista. Se preencher "sublocal_dentro_de", liste em "personagens_no_sublocal" APENAS quem efetivamente seguiu para essa área mais específica (os demais permanecem no local pai).
 [LOCAIS JÁ CONHECIDOS NESTE UNIVERSO]: ${registroLocais}
 
 EXPANSÃO DE LORE: se a prosa mencionar personagens INÉDITOS (que não estejam entre os presentes listados), liste-os em "novos_personagens" com descrição e estado psicológico para cadastro no sistema.
@@ -277,7 +277,7 @@ Em "prosa", escreva apenas o parágrafo literário, em português, sem avisos si
           cenario_atualizado: { type: 'string' },
           clima_atualizado: { type: 'string' },
           momento_atualizado: { type: 'string', description: 'Data/hora aproximada da narrativa após o decurso natural do tempo neste turno' },
-          cenario_identidade: { type: 'object', properties: { mesmo_local_que: { type: 'string' }, sublocal_dentro_de: { type: 'string' } } },
+          cenario_identidade: { type: 'object', properties: { mesmo_local_que: { type: 'string' }, sublocal_dentro_de: { type: 'string' }, personagens_no_sublocal: { type: 'array', items: { type: 'string' } } } },
           notas_grafo: { type: 'string', description: 'Instruções curtas para o Arquiteto de Grafos sobre o cenário visual' },
           novos_personagens: {
             type: 'array',
@@ -462,13 +462,16 @@ PERSONAGENS E AGENTES BASE44: ${elencoAtual.map((c) => `${c.name} → ${c.supera
     let bastidores = null;
     if (story.background_vivo) {
       try {
-        const presentes = elencoAtual.filter((c) => cenaFinal.includes(c.name));
+        const subconjunto = direcao.cenario_identidade?.sublocal_dentro_de && (direcao.cenario_identidade?.personagens_no_sublocal || []).length
+          ? direcao.cenario_identidade.personagens_no_sublocal
+          : null;
+        const presentes = elencoAtual.filter((c) => cenaFinal.includes(c.name) && (!subconjunto || subconjunto.includes(c.name)));
         await Promise.all(
           presentes.filter((c) => c.localizacao_atual !== cenarioAtual).map((c) => sdk.entities.Character.update(c.id, { localizacao_atual: cenarioAtual }))
         );
         if (cenarioAtual) {
           const { path: pathCena, localExistente } = resolverPathLocal(cenarioAtual, direcao.cenario_identidade, locaisUniverso);
-          const patchCena = { path: pathCena, personagens_presentes: cenaFinal, objetos_presentes: objetosUniverso.filter((o) => o.localizacao === cenarioAtual).map((o) => o.name), clima_local: climaAtual || null, estado_atual: 'Ativo' };
+          const patchCena = { path: pathCena, personagens_presentes: presentes.map((c) => c.name), objetos_presentes: objetosUniverso.filter((o) => o.localizacao === cenarioAtual).map((o) => o.name), clima_local: climaAtual || null, estado_atual: 'Ativo' };
           if (localExistente) await sdk.entities.Local.update(localExistente.id, patchCena);
           else await sdk.entities.Local.create({ universe_id: story.universe_id, name: cenarioAtual, descricao_persistente: 'Cenário ativo da narrativa.', ...patchCena });
           await Promise.all(presentes.map((c) => sdk.entities.Character.update(c.id, { localizacao_path: pathCena })));
