@@ -197,7 +197,7 @@ export async function generateBookPdf(livro, html, capaBase64, ilustracoesPorCap
           const hObj = (props.height / props.width) * wObj;
           ensureSpace(hObj);
           doc.addImage(obj.imagemBase64, "PNG", pageW - MARGEM - GUTTER_OBJETO + 4, y, wObj, hObj);
-        } catch (_e) {
+        } catch {
           // Ilustração de objeto malformada não deve interromper a diagramação do texto.
         }
       }
@@ -221,7 +221,7 @@ export async function generateBookPdf(livro, html, capaBase64, ilustracoesPorCap
           }
           y = Math.max(y, yTopoImagem + hImg) + lineH * 0.8;
           continue;
-        } catch (_e) {
+        } catch {
           // Se a ilustração falhar ao processar, cai pro fluxo normal de texto abaixo.
         }
       }
