@@ -87,7 +87,7 @@ export default function PolishingStudio({ livro, storyId, universeId, capitulosB
             }))
           );
           resultado.push({ abertura, secundarias });
-        } catch (_e) {
+        } catch {
           resultado.push(null); // esse capítulo fica sem ilustração, mas não trava os demais
         }
       }
