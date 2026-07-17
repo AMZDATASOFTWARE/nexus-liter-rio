@@ -1,6 +1,7 @@
 import React, { useState, useRef } from "react";
 import { createPortal } from "react-dom";
 import { BookDown, Loader2 } from "lucide-react";
+import { obterPortalRoot } from "@/lib/portalRoot";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
 import PolishingStudio from "./PolishingStudio";
@@ -123,7 +124,7 @@ export default function BookExporter({ storyId, universeId }) {
             )}
           </div>
         </div>,
-        document.body
+        obterPortalRoot()
       )}
 
       {livro && (
