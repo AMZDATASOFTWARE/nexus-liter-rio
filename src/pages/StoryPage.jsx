@@ -121,7 +121,7 @@ export default function StoryPage({ storyIdProp }) {
               <Network className="w-4 h-4" />
             </Link>
           )}
-          {!isNew && <BookExporter storyId={id} />}
+          {!isNew && <BookExporter storyId={id} universeId={story?.universe_id} />}
           {!isNew && (
             <button onClick={compilarCapitulo} disabled={compilando} className="shrink-0 p-2 rounded-lg border border-zinc-800 text-zinc-500 hover:text-amber-300 hover:border-amber-500/40 transition-colors disabled:opacity-50" title="Compilar capítulo (Compilador de Cânone)">
               {compilando ? <Loader2 className="w-4 h-4 animate-spin" /> : <BookOpen className="w-4 h-4" />}
