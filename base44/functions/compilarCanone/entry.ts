@@ -106,6 +106,7 @@ DIRETRIZES DE COMPILAÇÃO:
 3. Correção de Continuidade: suavize transições bruscas entre os blocos, garantindo ritmo literário profissional.
 4. Formatação: retorne o texto em Markdown, com quebras de parágrafo claras, usando negrito ou itálico apenas quando estritamente necessário para ênfase narrativa.
 ${diretrizesDoModo(modoCompilacao)}
+7. SEGMENTAÇÃO (importante — usado depois para ilustrar o livro): divida sua prosa final em "segmentos" na ordem em que acontecem. Cada segmento tem um "tipo": "cena" (narrativa principal — pode fundir vários blocos USER/AI consecutivos num só segmento de cena), "memoria" (o flashback de UMA lembrança evocada — um segmento por lembrança, preenchendo "personagem_memoria" com quem lembra) ou "offscreen" (UM evento de bastidores/Mundo Vivo — um segmento por evento, preenchendo "local_offscreen" com onde acontece). NUNCA misture tipos diferentes no mesmo segmento — se uma lembrança interrompe uma cena, feche o segmento de cena, abra um segmento de memória, e depois reabra um novo segmento de cena para continuar.
 
 [HISTÓRIA]: "${story.title}"
 ${posicao}${continuidade}
@@ -115,15 +116,33 @@ ${JSON.stringify(arrayBruto, null, 2)}`,
         type: 'object',
         properties: {
           titulo_sugerido_para_o_capitulo: { type: 'string' },
-          texto_compilado_markdown: { type: 'string', description: 'O texto literário completo e polido deste lote, sem nenhum evento omitido' },
+          segmentos: {
+            type: 'array',
+            description: 'O texto compilado do lote, dividido em segmentos rotulados por origem, na ordem em que acontecem, sem nenhum evento omitido',
+            items: {
+              type: 'object',
+              properties: {
+                tipo: { type: 'string', enum: ['cena', 'memoria', 'offscreen'] },
+                texto_markdown: { type: 'string', description: 'O texto literário deste segmento, em Markdown' },
+                personagem_memoria: { type: 'string', description: 'Preenchido só quando tipo=memoria: de quem é a lembrança' },
+                local_offscreen: { type: 'string', description: 'Preenchido só quando tipo=offscreen: onde os bastidores acontecem' }
+              },
+              required: ['tipo', 'texto_markdown']
+            }
+          },
           resumo_para_continuidade: { type: 'string', description: '2-3 frases dizendo exatamente onde a narrativa parou (quem está onde, fazendo o quê), para o próximo lote continuar sem recapitular' },
           total_de_palavras: { type: 'string', description: 'Número estimado' }
         },
-        required: ['titulo_sugerido_para_o_capitulo', 'texto_compilado_markdown', 'resumo_para_continuidade', 'total_de_palavras']
+        required: ['titulo_sugerido_para_o_capitulo', 'segmentos', 'resumo_para_continuidade', 'total_de_palavras']
       }
     });
 
-    return Response.json(res);
+    // texto_compilado_markdown é derivado dos segmentos — mantém compatibilidade com o editor do
+    // Estúdio de Lapidação, que nunca precisa saber que segmentos existem.
+    const segmentos = Array.isArray(res.segmentos) ? res.segmentos : [];
+    const texto_compilado_markdown = segmentos.map((s) => s.texto_markdown).filter(Boolean).join('\n\n');
+
+    return Response.json({ ...res, segmentos, texto_compilado_markdown });
   } catch (error) {
     return Response.json({ error: error.message }, { status: 500 });
   }
