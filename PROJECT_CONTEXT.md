@@ -3,7 +3,7 @@
 > Checkpoint documental do estado do projeto. Atualizado a cada bloco relevante de trabalho concluído.
 > Mantido em paridade em 3 lugares: este arquivo local, a cópia no sandbox Base44, e a memória do projeto (Claude).
 
-**Última atualização: 2026-07-17 — Mundo Vivo V2 (Gaps 1–4 do `PLAN_MUNDO_VIVO_V2.md`) implementado e validado ao vivo.**
+**Última atualização: 2026-07-17 — Exportação de livro (PDF) reescrita: capítulos sem limite de páginas + 3 estilos de compilação.**
 
 ## O que foi feito nesta sessão
 
@@ -34,6 +34,15 @@ Implementação completa do `PLAN_MUNDO_VIVO_V2.md` (documento na raiz, mesclado
 3. **Arrasto indevido pro sublocal mais específico**: ao entrar num sublocal (ex: banheiro dentro da taverna), TODO o elenco da cena era carimbado no path mais fundo. Fix: novo campo `personagens_no_sublocal` — só quem efetivamente segue pro cômodo mais específico é atualizado; o resto permanece no local pai. Validado ao vivo (Lyra sozinha no banheiro; Bram/Doran ficaram na sala principal; Nara nem foi tocada).
 4. **Match de nome frágil no subconjunto**: exigir igualdade exata de nome no filtro do subconjunto falhava silenciosamente se o Diretor variasse o nome. Fix: match flexível (mesma convenção já usada em outros pontos do código pra nomes de personagem).
 
+## Exportação de livro (PDF) — "Lapidar e exportar como livro" (2026-07-17)
+
+Verificação da ferramenta a pedido do usuário revelou que o livro saía com ~3 páginas (a história inteira era comprimida em **um único `InvokeLLM`** do `compilarCanone`, limitado pelos tokens de saída) e que o Compilador de Cânone não conhecia os blocos `MEMORIA`/`OFFSCREEN` do Mundo Vivo. Reescrita (checkpoint `6a598f6c4b59f7090410bcc4`):
+
+- **`compilarCanone`**: busca de blocos **sem teto de 500** (paginação por cursor `$gte created_date` + dedupe por id, só acionada acima de 500, com fallback); SYSTEM filtrado antes do payload; novos params opcionais `manifesto` (só contagem, sem LLM), `modoCompilacao`, `blocoInicio`/`blocoFim` (faixa do lote), `contextoAnterior` (continuidade), `parte`/`totalPartes`; diretriz de **FIDELIDADE INTEGRAL** (não resumir/omitir); diretrizes para MEMORIA (flashback em 1ª pessoa de quem lembra) e OFFSCREEN por modo; payload agora inclui `contexto` (`memoria_character_name` = quem lembra / local dos bastidores); schema ganhou `resumo_para_continuidade`. Sem params novos, comporta-se como antes (botão "Compilar capítulo" da StoryPage intacto).
+- **`exportarLivro`**: repassa os novos params; modo `manifesto: true` devolve `{titulo_historia, nome_universo, total_de_blocos_uteis}`.
+- **`BookExporter.jsx`**: dialog "Estilo de compilação" com 3 modos escolhíveis pelo usuário — **Integrado** (bastidores como "Enquanto isso..."), **Sem bastidores** (OFFSCREEN fora do livro), **Interlúdios** (bastidores em seções `## Interlúdio — {local}`); loop de compilação dirigido pelo frontend (1 request = 1 capítulo de `BLOCOS_POR_CAPITULO = 24` blocos, com corrente de continuidade entre lotes ⇒ livro de qualquer tamanho sem timeout de função), barra de progresso "Compilando capítulo i de N", 1 retry por lote, cancelável. `PolishingStudio`/`bookPdf` inalterados (já paginavam infinito e já renderizam `#`/`##`).
+- Verificado: node --check nos 2 entry.ts, ESLint limpo, vite build verde com a nova UI no bundle. **Teste E2E ao vivo pendente de Publish** (ver plano em `~/.claude/plans/`): rodar na história-laboratório os modos integrado e interlúdios + validar que sem_bastidores não vaza bastidores; para forçar múltiplos capítulos, reduzir temporariamente `BLOCOS_POR_CAPITULO`.
+
 ## Universo de teste (mantido de propósito)
 
 **`Teste_Gap4_Bastidores`** (universe_id `6a591ccbaa734aa83561f81c`) — história `Teste Gap 4 — Bastidores` (`6a591cf3607a644cc7790ce3`), com personagens `Lyra_Teste`, `Bram_Teste`, `Nara_Teste`, `Doran_Teste`, `Irmã de Lyra` (nascida de memória). **Mantido intencionalmente** como laboratório pra testes futuros de Mundo Vivo/hierarquia de locais — não é um universo de conteúdo real do usuário.
@@ -51,6 +60,7 @@ Tudo commitado no sandbox e sincronizado no GitHub (`main`). **Publish no builde
 
 ## Checkpoints Base44 desta sessão (mais recente primeiro)
 
+- `6a598f6c4b59f7090410bcc4` — livro PDF: compilação por capítulos sem limite + 3 estilos + MEMORIA/OFFSCREEN no compilador
 - `6a597c8818b98a3c172a1950` — fix de match flexível de nome no subconjunto (validado ao vivo logo em seguida)
 - `6a597a3b873a5a0359848704` — subconjunto de personagens_no_sublocal
 - `6a593c9e52372b0ea7680204` — endereço hierárquico de Local (path por slug)
