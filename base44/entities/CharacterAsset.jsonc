@@ -1,0 +1,41 @@
+{
+  "name": "CharacterAsset",
+  "type": "object",
+  "properties": {
+    "universe_id": {
+      "type": "string",
+      "description": "Universo ao qual o personagem pertence"
+    },
+    "character_name": {
+      "type": "string",
+      "description": "Nome do personagem (casado por texto, mesma convencao de nome usada em todo o app)"
+    },
+    "tipo": {
+      "type": "string",
+      "enum": [
+        "imagem_personagem",
+        "pdf_ficha"
+      ],
+      "description": "Tipo de arquivo de referencia enviado"
+    },
+    "nome_arquivo": {
+      "type": "string",
+      "description": "Nome original do arquivo enviado"
+    },
+    "file_url": {
+      "type": "string",
+      "description": "URL do arquivo enviado (Core.UploadFile)"
+    },
+    "descricao_extraida": {
+      "type": "string",
+      "description": "Descricao textual extraida por IA (aparencia fisica da imagem, ou resumo da ficha em PDF) - e isso que e reaproveitado na escrita e nas ilustracoes, nunca o arquivo bruto de novo"
+    }
+  },
+  "required": [
+    "universe_id",
+    "character_name",
+    "tipo",
+    "file_url",
+    "descricao_extraida"
+  ]
+}
