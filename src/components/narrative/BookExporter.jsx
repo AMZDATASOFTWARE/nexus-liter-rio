@@ -29,6 +29,7 @@ export default function BookExporter({ storyId }) {
   const [modo, setModo] = useState("integrado");
   const [progresso, setProgresso] = useState(null); // { atual, total } durante a compilação
   const [livro, setLivro] = useState(null);
+  const [capitulosBrutos, setCapitulosBrutos] = useState(null);
   const canceladoRef = useRef(false);
   const { toast } = useToast();
   const compilando = progresso !== null;
@@ -39,6 +40,7 @@ export default function BookExporter({ storyId }) {
     try {
       const capitulos = await compilarCapitulosDaHistoria(storyId, modo, setProgresso, () => canceladoRef.current);
       if (!capitulos) return;
+      setCapitulosBrutos(capitulos);
       setLivro(juntarCapitulosEmLivro(capitulos));
       setEscolhendo(false);
     } catch (e) {
@@ -124,7 +126,14 @@ export default function BookExporter({ storyId }) {
         document.body
       )}
 
-      {livro && <PolishingStudio livro={livro} storyId={storyId} onClose={() => setLivro(null)} />}
+      {livro && (
+        <PolishingStudio
+          livro={livro}
+          storyId={storyId}
+          capitulosBrutos={capitulosBrutos}
+          onClose={() => setLivro(null)}
+        />
+      )}
     </>
   );
 }
