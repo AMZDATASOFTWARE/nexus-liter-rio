@@ -87,12 +87,14 @@ export async function generateBookPdf(livro, html, capaBase64) {
   // ----- Página de título -----
   if (capaBase64) {
     await desenharCapaComIlustracao(doc, livro, capaBase64, pageW, pageH, maxW);
+    doc.setTextColor(200, 200, 205); // ré sobre o gradiente escuro que cobre a base da capa
   } else {
     desenharCapaSemIlustracao(doc, livro, pageW, pageH, maxW);
   }
   doc.setFont("times", "normal");
   doc.setFontSize(9);
   doc.text("Nexus Literário · Motor Narrativo Multiversal", pageW / 2, pageH - margin, { align: "center" });
+  doc.setTextColor(0, 0, 0);
 
   // ----- Corpo: percorre os blocos HTML do editor -----
   doc.addPage();
