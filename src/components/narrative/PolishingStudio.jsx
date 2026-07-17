@@ -42,6 +42,7 @@ export default function PolishingStudio({ livro, storyId, onClose }) {
   const [html, setHtml] = useState(() => markdownParaHtml(livro.texto_compilado_markdown));
   const [gerandoCapa, setGerandoCapa] = useState(false);
   const [capa, setCapa] = useState(null); // { imagemBase64, estilo }
+  const [publicando, setPublicando] = useState(false);
   const { toast } = useToast();
 
   const gerarCapa = async () => {
@@ -57,12 +58,19 @@ export default function PolishingStudio({ livro, storyId, onClose }) {
     }
   };
 
-  const publicar = () => {
-    generateBookPdf(livro, html, capa?.imagemBase64);
-    confetti({ particleCount: 180, spread: 90, origin: { y: 0.6 } });
-    setTimeout(() => confetti({ particleCount: 120, spread: 120, origin: { x: 0.2, y: 0.4 } }), 300);
-    setTimeout(() => confetti({ particleCount: 120, spread: 120, origin: { x: 0.8, y: 0.4 } }), 600);
-    toast({ title: "Download iniciado!", description: "Seu livro foi lapidado e publicado. Parabéns, autor." });
+  const publicar = async () => {
+    setPublicando(true);
+    try {
+      await generateBookPdf(livro, html, capa?.imagemBase64);
+      confetti({ particleCount: 180, spread: 90, origin: { y: 0.6 } });
+      setTimeout(() => confetti({ particleCount: 120, spread: 120, origin: { x: 0.2, y: 0.4 } }), 300);
+      setTimeout(() => confetti({ particleCount: 120, spread: 120, origin: { x: 0.8, y: 0.4 } }), 600);
+      toast({ title: "Download iniciado!", description: "Seu livro foi lapidado e publicado. Parabéns, autor." });
+    } catch (e) {
+      toast({ title: "Falha ao gerar o PDF", description: e.message, variant: "destructive" });
+    } finally {
+      setPublicando(false);
+    }
   };
 
   return createPortal(
@@ -73,8 +81,9 @@ export default function PolishingStudio({ livro, storyId, onClose }) {
           <p className="text-[11px] text-zinc-500 truncate">{livro.titulo_capitulo} · edite livremente antes de publicar</p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          <Button onClick={publicar} className="bg-amber-500 hover:bg-amber-400 text-zinc-950 font-medium">
-            <BookDown className="w-4 h-4 mr-2" /> Publicar Livro
+          <Button onClick={publicar} disabled={publicando} className="bg-amber-500 hover:bg-amber-400 text-zinc-950 font-medium">
+            {publicando ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <BookDown className="w-4 h-4 mr-2" />}
+            {publicando ? "Gerando PDF..." : "Publicar Livro"}
           </Button>
           <Button variant="ghost" size="icon" onClick={onClose} className="text-zinc-500 hover:text-zinc-200 hover:bg-zinc-900" title="Voltar sem exportar">
             <X className="w-5 h-5" />
