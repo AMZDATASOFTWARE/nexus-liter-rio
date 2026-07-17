@@ -6,6 +6,7 @@ import { ArrowLeft, Loader2, PenLine, Network } from "lucide-react";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 import StoryPage from "@/pages/StoryPage";
 import GraphPage from "@/pages/GraphPage";
+import ErrorBoundary from "@/components/ErrorBoundary";
 
 function PanelTabs({ view, onChange, showBack }) {
   const tabs = [
@@ -48,6 +49,14 @@ function PanelView({ view, storyId, universeId }) {
   return <GraphPage universeIdProp={universeId} />;
 }
 
+function PanelViewComErrorBoundary(props) {
+  return (
+    <ErrorBoundary key={props.view}>
+      <PanelView {...props} />
+    </ErrorBoundary>
+  );
+}
+
 export default function WorkspacePage() {
   const { id } = useParams();
   const [leftView, setLeftView] = useState("story");
@@ -64,14 +73,14 @@ export default function WorkspacePage() {
         <ResizablePanel defaultSize={50} minSize={25} className="flex flex-col min-w-0">
           <PanelTabs view={leftView} onChange={setLeftView} showBack />
           <div className="flex-1 min-h-0 overflow-hidden">
-            <PanelView view={leftView} storyId={id} universeId={story?.universe_id} />
+            <PanelViewComErrorBoundary view={leftView} storyId={id} universeId={story?.universe_id} />
           </div>
         </ResizablePanel>
         <ResizableHandle withHandle className="bg-zinc-900" />
         <ResizablePanel defaultSize={50} minSize={25} className="flex flex-col min-w-0">
           <PanelTabs view={rightView} onChange={setRightView} />
           <div className="flex-1 min-h-0 overflow-hidden">
-            <PanelView view={rightView} storyId={id} universeId={story?.universe_id} />
+            <PanelViewComErrorBoundary view={rightView} storyId={id} universeId={story?.universe_id} />
           </div>
         </ResizablePanel>
       </ResizablePanelGroup>
