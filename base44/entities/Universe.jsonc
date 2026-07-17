@@ -9,6 +9,10 @@
     "rules": {
       "type": "string",
       "description": "Regras e leis f\u00edsicas/metaf\u00edsicas do universo"
+    },
+    "estilo_visual_ilustracao": {
+      "type": "string",
+      "description": "Estilo visual escolhido pela IA para ilustrar as capas dos livros deste universo (ex: cyberpunk, infantil, anime). Classificado automaticamente na primeira ilustracao gerada e reaproveitado depois."
     }
   },
   "required": [
