@@ -3,7 +3,7 @@
 > Checkpoint documental do estado do projeto. Atualizado a cada bloco relevante de trabalho concluído.
 > Mantido em paridade em 3 lugares: este arquivo local, a cópia no sandbox Base44, e a memória do projeto (Claude).
 
-**Última atualização: 2026-07-17 — Ilustrações por capítulo: abertura, memória, bastidores e objetos na margem.**
+**Última atualização: 2026-07-17 — Fix crítico: portais React colidindo com Stripe.js no document.body.**
 
 ## O que foi feito nesta sessão
 
@@ -136,6 +136,17 @@ A pedido do usuário, com fotos de referência de um livro clássico ilustrado (
 - **Frontend**: `PolishingStudio.jsx` ganhou o botão **"Ilustrar capítulos"** (separado da capa, opcional, com barra de progresso por capítulo); `BookExporter.jsx`/`compilarLivro.js` passam a expor os `capitulos` crus (com `segmentos`) além do `livro` já unido; `universeId` agora trafega StoryPage → BookExporter → PolishingStudio.
 - Verificado: `node --check` nas 3 funções tocadas/novas, ESLint limpo, `vite build` verde, textos de UI confirmados no bundle. **Não testei geração real** — até 3 imagens por capítulo, custo/tempo reais; teste combinado com o usuário após o Publish, numa história pequena do universo-laboratório primeiro.
 
+## Fix crítico: portais React colidindo com Stripe.js (2026-07-17)
+
+Usuário reportou que gerar a capa OU a ilustração de capítulos sempre disparava o Error Boundary ("Algo quebrou nesta tela"), só no app publicado. Checkpoint `6a5a86c5e311424d97800974`.
+
+**Diagnóstico**: `npx base44 logs` (CLI, exigiu login por código de dispositivo do usuário) não ajudou — `--env prod` não retornou nada, `--env preview` só mostrava `INFO/POST` sem detalhe, e o filtro `--function` provou não filtrar de verdade. O diagnóstico real veio do **Console do navegador** (usuário mandou print): `NotFoundError: Failed to execute 'insertBefore' on 'Node': the node before which the new node is to be inserted is not a child of this node` — acompanhado de `Failed to load resource: net::ERR_NAME_NOT_RESOLVED m.stripe.com` (rede do usuário bloqueando o domínio do Stripe).
+
+**Causa raiz**: `Stripe.js` (carregado globalmente porque `TokenStoreModal` fica sempre montado) insere/remove elementos como filhos diretos do `<body>`. Os portais React criados nesta sessão (`BookExporter.jsx`/`PolishingStudio.jsx`, via `createPortal(..., document.body)` — fix anterior pro bug do modal cortado pelo `backdrop-blur` do header) **também** renderizavam direto no `<body>`. Quando o Stripe mexe no `<body>` no mesmo instante em que o React tenta inserir um nó do portal, o React perde a referência do irmão esperado — `insertBefore` falha. Os diálogos Radix (`Dialog`/`AlertDialog`, usados em `TokenStoreModal`/`AdminPage`/`CharacterAssetsDialog`) têm o mesm risco por padrão (também portam pro `document.body`).
+
+**Fix**: novo `src/lib/portalRoot.js` — `obterPortalRoot()` cria (uma vez) um `<div id="nexus-portal-root">` dedicado, anexado ao body, que nenhum script de terceiro toca. `BookExporter.jsx`/`PolishingStudio.jsx` passam a portar pra esse container em vez de `document.body` direto; `src/components/ui/dialog.jsx`/`alert-dialog.jsx` (Radix) ganharam `container={obterPortalRoot()}` no `Portal`, blindando `TokenStoreModal`/`AdminPage`/`CharacterAssetsDialog` do mesmo risco preventivamente.
+- Verificado: ESLint limpo, vite build verde, `nexus-portal-root` confirmado no bundle.
+
 ## Universo de teste (mantido de propósito)
 
 **`Teste_Gap4_Bastidores`** (universe_id `6a591ccbaa734aa83561f81c`) — história `Teste Gap 4 — Bastidores` (`6a591cf3607a644cc7790ce3`), com personagens `Lyra_Teste`, `Bram_Teste`, `Nara_Teste`, `Doran_Teste`, `Irmã de Lyra` (nascida de memória). **Mantido intencionalmente** como laboratório pra testes futuros de Mundo Vivo/hierarquia de locais — não é um universo de conteúdo real do usuário.
@@ -153,6 +164,7 @@ Tudo commitado no sandbox e sincronizado no GitHub (`main`). **Publish no builde
 
 ## Checkpoints Base44 desta sessão (mais recente primeiro)
 
+- `6a5a86c5e311424d97800974` — fix crítico: portais React vs Stripe.js no document.body (container dedicado obterPortalRoot)
 - `6a5a7f1c2bd8b0f345d3c59f` — ilustrações por capítulo (abertura + memória + bastidores + objetos na margem)
 - `6a5a72366b22c3c60c1ee51f` — fix tela branca no Workspace (removeChild sem containment check) + ErrorBoundary
 - `6a5a6f37f166c421d4f10e04` — referências de personagem (CharacterAsset) para consistência entre capítulos
