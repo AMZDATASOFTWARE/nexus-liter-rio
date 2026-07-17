@@ -43,6 +43,7 @@ Deno.serve(async (req) => {
       nome_universo: universe.name,
       titulo_capitulo: capitulo.titulo_sugerido_para_o_capitulo,
       texto_compilado_markdown: capitulo.texto_compilado_markdown,
+      segmentos: capitulo.segmentos,
       resumo_para_continuidade: capitulo.resumo_para_continuidade,
       total_de_palavras: capitulo.total_de_palavras
     });
