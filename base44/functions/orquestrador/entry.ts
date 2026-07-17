@@ -456,6 +456,7 @@ Se o texto não indicar mudanças claras, mantenha o estado anterior, mas apliqu
    - "mesmo_local_que": nome EXATO de um Local já conhecido, SE este cenário for fisicamente o mesmo lugar de antes (só descrito diferente). Vazio caso contrário.
    - "sublocal_dentro_de": nome EXATO de um Local já conhecido, SE este cenário for uma área DENTRO dele (ex: o quarto dentro da casa, o banheiro dentro do quarto). Vazio caso contrário.
    Se nenhum dos dois se aplicar, este é um lugar novo e independente (não preencha nenhum). NUNCA invente nomes fora da lista de Locais já conhecidos.
+   - "personagens_no_sublocal": SE "sublocal_dentro_de" foi preenchido, liste APENAS os personagens que efetivamente seguiram para esta área mais específica (normalmente só o POV, às vezes mais alguém junto). Os demais presentes na cena permanecem no local pai e NÃO devem ser listados aqui.
 
 O universo focado é: "${universeName}".
 
@@ -483,7 +484,8 @@ ${estadoAnterior}`,
           type: 'object',
           properties: {
             mesmo_local_que: { type: 'string' },
-            sublocal_dentro_de: { type: 'string' }
+            sublocal_dentro_de: { type: 'string' },
+            personagens_no_sublocal: { type: 'array', items: { type: 'string' } }
           }
         },
         mudanca_drastica_detectada: { type: 'boolean' },
@@ -1381,13 +1383,18 @@ PERSONAGENS E AGENTES BASE44: ${characters.map((c) => `${c.name} → ${c.superag
     if (story.background_vivo) {
       try {
         const cenarioNome = atual.cenario_focado || story.cenario_atual;
-        const presentes = characters.filter((c) => cenaFinal.includes(c.name));
+        // Se o cenário é um sublocal e o Diretor especificou quem seguiu junto, só esse subconjunto se move;
+        // os demais presentes na cena permanecem onde estavam (não são arrastados pro cômodo mais específico).
+        const subconjunto = sincronizacao.cenario_identidade?.sublocal_dentro_de && (sincronizacao.cenario_identidade?.personagens_no_sublocal || []).length
+          ? sincronizacao.cenario_identidade.personagens_no_sublocal
+          : null;
+        const presentes = characters.filter((c) => cenaFinal.includes(c.name) && (!subconjunto || subconjunto.includes(c.name)));
         await Promise.all(
           presentes.filter((c) => c.localizacao_atual !== cenarioNome).map((c) => sdk.entities.Character.update(c.id, { localizacao_atual: cenarioNome }))
         );
         if (cenarioNome) {
           const { path: pathCena, localExistente } = resolverPathLocal(cenarioNome, sincronizacao.cenario_identidade, locaisUniverso);
-          const patchCena = { path: pathCena, personagens_presentes: cenaFinal, objetos_presentes: objetosUniverso.filter((o) => o.localizacao === cenarioNome).map((o) => o.name), clima_local: atual.condicao_climatica_atmosferica || null, estado_atual: 'Ativo' };
+          const patchCena = { path: pathCena, personagens_presentes: presentes.map((c) => c.name), objetos_presentes: objetosUniverso.filter((o) => o.localizacao === cenarioNome).map((o) => o.name), clima_local: atual.condicao_climatica_atmosferica || null, estado_atual: 'Ativo' };
           if (localExistente) await sdk.entities.Local.update(localExistente.id, patchCena);
           else await sdk.entities.Local.create({ universe_id: story.universe_id, name: cenarioNome, descricao_persistente: 'Cenário ativo da narrativa.', ...patchCena });
           await Promise.all(presentes.map((c) => sdk.entities.Character.update(c.id, { localizacao_path: pathCena })));
