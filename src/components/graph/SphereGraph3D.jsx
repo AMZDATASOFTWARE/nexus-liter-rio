@@ -141,7 +141,7 @@ export default function SphereGraph3D({ nos, arestas, metadata, lod, onViewportE
       controls.removeEventListener("end", onControlsEnd);
       controls.dispose();
       renderer.dispose();
-      el.removeChild(renderer.domElement);
+      if (el.contains(renderer.domElement)) el.removeChild(renderer.domElement);
       objectsRef.current = null;
     };
   }, [nos, arestas, metadata]);
