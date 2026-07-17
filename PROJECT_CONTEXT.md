@@ -3,7 +3,7 @@
 > Checkpoint documental do estado do projeto. Atualizado a cada bloco relevante de trabalho concluído.
 > Mantido em paridade em 3 lugares: este arquivo local, a cópia no sandbox Base44, e a memória do projeto (Claude).
 
-**Última atualização: 2026-07-17 — Exportação de livro (PDF) reescrita: capítulos sem limite de páginas + 3 estilos de compilação.**
+**Última atualização: 2026-07-17 — Botão "Reset do Sistema" (/admin): apaga tudo, com backup automático via Mega Livro.**
 
 ## O que foi feito nesta sessão
 
@@ -43,6 +43,17 @@ Verificação da ferramenta a pedido do usuário revelou que o livro saía com ~
 - **`BookExporter.jsx`**: dialog "Estilo de compilação" com 3 modos escolhíveis pelo usuário — **Integrado** (bastidores como "Enquanto isso..."), **Sem bastidores** (OFFSCREEN fora do livro), **Interlúdios** (bastidores em seções `## Interlúdio — {local}`); loop de compilação dirigido pelo frontend (1 request = 1 capítulo de `BLOCOS_POR_CAPITULO = 24` blocos, com corrente de continuidade entre lotes ⇒ livro de qualquer tamanho sem timeout de função), barra de progresso "Compilando capítulo i de N", 1 retry por lote, cancelável. `PolishingStudio`/`bookPdf` inalterados (já paginavam infinito e já renderizam `#`/`##`).
 - Verificado: node --check nos 2 entry.ts, ESLint limpo, vite build verde com a nova UI no bundle. **Confirmado ao vivo pelo usuário após Publish (2026-07-17): funcionando.**
 
+## Reset do Sistema — página `/admin` (2026-07-17)
+
+Botão administrativo de reset total, a pedido do usuário. Checkpoint `6a59ae33f9ed5c719e37d9bf`.
+
+- **Escopo do apagamento**: `Universe`, `Story`, `Character`, `NarrativeBlock`, `CharacterMemory`, `WorldObject`, `Local`, `GraphNode`, `GraphEdge`, `KnowledgeSource`, `OntologyType` — apagados por completo (`deleteMany({})` em loop até esgotar, com trava de segurança de 200 iterações/entidade). `UserWallet.nexus_tokens` é zerado (`updateMany`) sem apagar as carteiras. **`SlashCommand` é preservado** de propósito (configuração, não conteúdo do multiverso).
+- **Nova função `base44/functions/resetSistema/entry.ts`**: mesmo bypass de admin já usado em `orquestrador`/`simulacaoAutonoma`/`simulacaoBackground` (`role === 'admin'` ou id/email do dono). Modo `{ preview: true }` é só-leitura (contagens + lista de universos/histórias). Modo destrutivo exige a frase exata `"APAGAR TUDO"` em `confirmacao` — dupla trava junto com o admin bypass.
+- **Novo `src/pages/AdminPage.jsx`** (rota `/admin` em `App.jsx`, ícone `Shield` discreto no header do `Home.jsx`, visível só pra `user.role === 'admin'`): fluxo em 4 passos — (1) `AlertDialog` com as contagens atuais, (2) gera um **Mega Livro** compilando TODAS as histórias de TODOS os universos (reaproveita `compilarCapitulosDaHistoria`, extraído de `BookExporter.jsx` pro novo `src/components/narrative/compilarLivro.js` — mesmo pipeline de capítulos sem limite, sempre modo `integrado` pra não perder bastidores/flashbacks), com barra de progresso e cancelamento, (3) abre o `PolishingStudio` (inalterado) pro admin revisar/baixar o PDF, (4) só então libera a confirmação final — digitar "APAGAR TUDO" exatamente pra habilitar o botão de reset de fato.
+- **Refatoração de reuso**: `BookExporter.jsx` passou a importar `compilarCapitulosDaHistoria`/`juntarCapitulosEmLivro` de `compilarLivro.js` em vez de ter o loop inline — comportamento idêntico, só compartilhado com a página de Admin.
+- **Cuidado de implementação**: o botão de confirmação final usa um `Button` comum, NÃO o `AlertDialogAction` do Radix — `AlertDialogAction` fecha o dialog via `DialogPrimitive.Close` no mesmo clique (closure desatualizada faria o estado voltar pra "idle" antes do reset assíncrono terminar). Só os botões de "Cancelar" usam `AlertDialogCancel`.
+- Verificado: `node --check` na função nova, ESLint limpo, `vite build` verde com a nova página no bundle. **Não testei nem o preview nem o modo destrutivo ao vivo** — confirmei por leitura direta das entidades que há **13 universos e 13 histórias reais** no sistema (não só o laboratório de testes), então o modo destrutivo só deve ser invocado pelo próprio usuário, deliberadamente, após Publish — nunca por mim sem confirmação explícita na hora.
+
 ## Universo de teste (mantido de propósito)
 
 **`Teste_Gap4_Bastidores`** (universe_id `6a591ccbaa734aa83561f81c`) — história `Teste Gap 4 — Bastidores` (`6a591cf3607a644cc7790ce3`), com personagens `Lyra_Teste`, `Bram_Teste`, `Nara_Teste`, `Doran_Teste`, `Irmã de Lyra` (nascida de memória). **Mantido intencionalmente** como laboratório pra testes futuros de Mundo Vivo/hierarquia de locais — não é um universo de conteúdo real do usuário.
@@ -60,6 +71,7 @@ Tudo commitado no sandbox e sincronizado no GitHub (`main`). **Publish no builde
 
 ## Checkpoints Base44 desta sessão (mais recente primeiro)
 
+- `6a59ae33f9ed5c719e37d9bf` — botão "Reset do Sistema" (/admin) + Mega Livro de backup automático
 - `6a598f6c4b59f7090410bcc4` — livro PDF: compilação por capítulos sem limite + 3 estilos + MEMORIA/OFFSCREEN no compilador
 - `6a597c8818b98a3c172a1950` — fix de match flexível de nome no subconjunto (validado ao vivo logo em seguida)
 - `6a597a3b873a5a0359848704` — subconjunto de personagens_no_sublocal
