@@ -122,7 +122,7 @@ export default function BookExporter({ storyId }) {
         </div>
       )}
 
-      {livro && <PolishingStudio livro={livro} onClose={() => setLivro(null)} />}
+      {livro && <PolishingStudio livro={livro} storyId={storyId} onClose={() => setLivro(null)} />}
     </>
   );
 }
