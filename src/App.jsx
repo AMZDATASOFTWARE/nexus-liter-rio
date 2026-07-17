@@ -13,6 +13,10 @@ import KnowledgePage from './pages/KnowledgePage';
 import GraphPage from './pages/GraphPage';
 import WorkspacePage from './pages/WorkspacePage';
 import AdminPage from './pages/AdminPage';
+import Landing from './pages/Landing';
+
+// Rotas totalmente públicas — renderizam sem AuthProvider (sem exigir login).
+const PUBLIC_PATHS = ['/landing'];
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
@@ -54,6 +58,18 @@ const AuthenticatedApp = () => {
 
 
 function App() {
+  if (PUBLIC_PATHS.includes(window.location.pathname)) {
+    return (
+      <QueryClientProvider client={queryClientInstance}>
+        <Router>
+          <Routes>
+            <Route path="/landing" element={<Landing />} />
+          </Routes>
+        </Router>
+        <Toaster />
+      </QueryClientProvider>
+    );
+  }
 
   return (
     <AuthProvider>
