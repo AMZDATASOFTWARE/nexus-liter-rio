@@ -979,7 +979,8 @@ DIRETRIZES DE COLISÃO:
           isPov ? 'Descrever reação interna ao novo acontecimento ditado pelo usuário' : 'Descrever como este personagem age, fala e reage a este acontecimento',
           contextoCena,
           isPov,
-          ritmoAtual
+          ritmoAtual,
+          descricaoAparenciaDe(c.name, characterAssets)
         );
         return { nome: c.name, isPov, resposta: r.resposta };
       })
@@ -1056,7 +1057,8 @@ ${dadosNpcs}
         'Relatar suas memórias mais vivas, sensações físicas imediatas e estado emocional atual, para ancorar uma transição de consciência',
         contextoCena,
         true,
-        ritmoAtual
+        ritmoAtual,
+        descricaoAparenciaDe(novoPovChar.name, characterAssets)
       );
       const transicao = await sdk.integrations.Core.InvokeLLM({
         prompt: `Você é o Gestor de Transição de Consciência. O usuário acaba de realizar um salto de Ponto de Vista (POV) na narrativa multiversal.
