@@ -37,6 +37,25 @@ Deno.serve(async (req) => {
     const story = await sdk.entities.Story.get(storyId);
     const universe = await sdk.entities.Universe.get(story.universe_id);
 
+    // Referências canônicas de aparência dos personagens que aparecem nesta história/capa — mantém
+    // consistência visual mesmo sem geração de imagem com referência real (limitação do Core.GenerateImage).
+    let referenciasPersonagens = '';
+    try {
+      const characters = await sdk.entities.Character.filter({ universe_id: story.universe_id });
+      const characterAssets = await sdk.entities.CharacterAsset.filter({ universe_id: story.universe_id });
+      const textoBusca = `${story.title} ${resumoParaCapa || ''}`.toLowerCase();
+      referenciasPersonagens = characters
+        .filter((c) => c.name && textoBusca.includes(c.name.toLowerCase()))
+        .map((c) => {
+          const descs = characterAssets.filter((a) => a.character_name === c.name).map((a) => a.descricao_extraida).filter(Boolean);
+          return descs.length ? `${c.name}: ${descs.join(' ')}` : null;
+        })
+        .filter(Boolean)
+        .join('\n');
+    } catch (_e) {
+      referenciasPersonagens = '';
+    }
+
     // Estilo é fixado uma vez por universo — todas as histórias dele reaproveitam o mesmo.
     let estilo = CHAVES_ESTILO.includes(universe.estilo_visual_ilustracao) ? universe.estilo_visual_ilustracao : null;
     if (!estilo) {
@@ -64,7 +83,9 @@ Deno.serve(async (req) => {
 
 [TÍTULO]: "${story.title}"
 [UNIVERSO]: "${universe.rules || ''}"
-[TRECHO DA HISTÓRIA]: "${(resumoParaCapa || '').slice(0, 1500)}"`,
+[TRECHO DA HISTÓRIA]: "${(resumoParaCapa || '').slice(0, 1500)}"${referenciasPersonagens ? `
+[PERSONAGENS RECONHECÍVEIS NESTA CENA — mantenha a aparência física descrita abaixo]:
+${referenciasPersonagens}` : ''}`,
       response_json_schema: {
         type: 'object',
         properties: { descricao_visual: { type: 'string' } },
