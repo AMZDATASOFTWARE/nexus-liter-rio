@@ -83,6 +83,14 @@ A pedido do usuário, com pesquisa de referência extensiva antes de planejar (S
 - **Fora de escopo documentado**: ilustração por capítulo (mesma mecânica, repetir por `h1`); consistência de personagem (precisaria de API externa); seleção manual de estilo pelo usuário (hoje só auto-classificado).
 - Verificado: `node --check` na função nova, JSON do schema validado, campo confirmado via `list_entity_schemas`, ESLint limpo, `vite build` verde com a UI nova no bundle. **Não testei a geração de imagem ao vivo** — `GenerateImage` consome créditos reais / chama um provedor de IA de verdade, então esse teste fica combinado com o usuário antes de disparar, preferencialmente no universo-laboratório após o Publish.
 
+## Fix: modal do exportador de livro preso ao header (2026-07-17)
+
+Usuário reportou que o card "Estilo de compilação" aparecia cortado no topo, em qualquer tamanho de tela, mesmo após Publish. Primeira tentativa (`max-h-[85vh] overflow-y-auto`, checkpoint `6a5a27f46ac870fede2c08ae`) não resolveu — diagnóstico estava errado.
+
+**Causa raiz real**: `<BookExporter storyId={id} />` é renderizado **dentro** do `<header className="sticky top-0 z-20 backdrop-blur-xl ...">` de `StoryPage.jsx`. Por spec do CSS, `backdrop-filter` (via `backdrop-blur-xl`) num ancestral cria um novo *containing block* para descendentes `position: fixed` — ent≺o o modal de escolha de estilo (e, por tabela, todo o `PolishingStudio`, que é renderizado como filho do próprio `BookExporter`) ficavam com `inset-0` calculado em relação ao header (~64px de altura), não à viewport inteira — o conteúdo maior que isso ficava cortado/mal posicionado, com metade acima do topo visível. Os outros modais da página (`TokenStoreModal`, `CommandManagerSheet`, `ChapterPanel`, `ByokPromptPanel`) ficam fora do header, por isso nunca tiveram esse problema; os diálogos do `AdminPage` usam o `AlertDialog` do Radix, que já usa Portal internamente, também imunes.
+
+**Fix real** (checkpoint `6a5a2a53262a7b5d5a019a95`): `BookExporter.jsx` e `PolishingStudio.jsx` agora usam `createPortal(..., document.body)` pra renderizar seus overlays `fixed` diretamente como filhos de `<body>`, imunes a qualquer containing-block de ancestrais. O fix de `max-h`/`overflow-y-auto` anterior foi mantido (não fazia mal, só não era a causa raiz).
+
 ## Universo de teste (mantido de propósito)
 
 **`Teste_Gap4_Bastidores`** (universe_id `6a591ccbaa734aa83561f81c`) — história `Teste Gap 4 — Bastidores` (`6a591cf3607a644cc7790ce3`), com personagens `Lyra_Teste`, `Bram_Teste`, `Nara_Teste`, `Doran_Teste`, `Irmã de Lyra` (nascida de memória). **Mantido intencionalmente** como laboratório pra testes futuros de Mundo Vivo/hierarquia de locais — não é um universo de conteúdo real do usuário.
@@ -100,6 +108,8 @@ Tudo commitado no sandbox e sincronizado no GitHub (`main`). **Publish no builde
 
 ## Checkpoints Base44 desta sessão (mais recente primeiro)
 
+- `6a5a2a53262a7b5d5a019a95` — fix raiz: createPortal no BookExporter/PolishingStudio (containing block do backdrop-blur do header)
+- `6a5a27f46ac870fede2c08ae` — fix (parcial/insuficiente): max-h+overflow-y-auto no modal de estilo de compilação
 - `6a5a22df4aa52c9fbdd603fc` — ilustração de capa por IA (Core.GenerateImage + catalogo de 8 estilos + Universe.estilo_visual_ilustracao)
 - `6a59da120da843ca77b9c3eb` — fundo da landing reescrito: malha de espaço-tempo curvável + estrelas + multiverso com gravidade real
 - `6a59c59554077b861bbf2aca` — fix do tamanho do canvas do fundo (w-full h-full)
