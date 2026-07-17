@@ -1,5 +1,15 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.38';
 
+// ----- Referência canônica de aparência: descrições extraídas de imagens/PDFs enviados p/ o personagem -----
+function descricaoAparenciaDe(nome, assets) {
+  if (!nome || !assets?.length) return '';
+  return assets
+    .filter((a) => a.character_name === nome || (nome.length > 3 && (a.character_name || '').includes(nome)) || (nome.length > 3 && nome.includes(a.character_name || '')))
+    .map((a) => a.descricao_extraida)
+    .filter(Boolean)
+    .join(' ');
+}
+
 // ----- Casamento fuzzy de local (fallback): usado só quando o Diretor não resolve a identidade hierárquica -----
 function mesmoLocal(a, b) {
   const na = (a || '').toLowerCase().trim();
@@ -80,6 +90,8 @@ Deno.serve(async (req) => {
     const story = await sdk.entities.Story.get(storyId);
     const universe = await sdk.entities.Universe.get(story.universe_id);
     const characters = await sdk.entities.Character.filter({ universe_id: story.universe_id });
+    let characterAssets = [];
+    try { characterAssets = await sdk.entities.CharacterAsset.filter({ universe_id: story.universe_id }); } catch (_e) { characterAssets = []; }
     const blocks = await sdk.entities.NarrativeBlock.filter({ story_id: storyId }, '-created_date', 3);
     blocks.reverse();
 
@@ -135,6 +147,7 @@ IDENTIDADE VERBAL E MENTAL:
 [VERBOSIDADE (1 a 10)]: ${personagemFoco.verbosidade || 5}
 [ESTILO DE PENSAMENTO]: ${personagemFoco.estilo_pensamento || 'Lógico'}
 [ESTADO PSICOLÓGICO ATUAL]: ${personagemFoco.psychological_state || '?'}
+${descricaoAparenciaDe(personagemFoco.name, characterAssets) ? `[REFERÊNCIA CANÔNICA DE APARÊNCIA — respeite estritamente ao descrever este personagem fisicamente]: ${descricaoAparenciaDe(personagemFoco.name, characterAssets)}` : ''}
 [MEMÓRIA CORE (convicções, cicatrizes, habilidades)]:
 ${(personagemFoco.memoria_core || []).map((m) => `- ${m}`).join('\n') || '- (nenhuma consolidada)'}
 Histórico compactado: ${personagemFoco.eventos_historicos || '(nenhum)'}
