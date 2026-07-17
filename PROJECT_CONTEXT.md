@@ -3,7 +3,7 @@
 > Checkpoint documental do estado do projeto. Atualizado a cada bloco relevante de trabalho concluído.
 > Mantido em paridade em 3 lugares: este arquivo local, a cópia no sandbox Base44, e a memória do projeto (Claude).
 
-**Última atualização: 2026-07-17 — Botão "Reset do Sistema" (/admin): apaga tudo, com backup automático via Mega Livro.**
+**Última atualização: 2026-07-17 — Landing page pública em `/landing`, com fundo de partículas-grafo interativo.**
 
 ## O que foi feito nesta sessão
 
@@ -54,6 +54,17 @@ Botão administrativo de reset total, a pedido do usuário. Checkpoint `6a59ae33
 - **Cuidado de implementação**: o botão de confirmação final usa um `Button` comum, NÃO o `AlertDialogAction` do Radix — `AlertDialogAction` fecha o dialog via `DialogPrimitive.Close` no mesmo clique (closure desatualizada faria o estado voltar pra "idle" antes do reset assíncrono terminar). Só os botões de "Cancelar" usam `AlertDialogCancel`.
 - Verificado: `node --check` na função nova, ESLint limpo, `vite build` verde com a nova página no bundle. Não testei nem o preview nem o modo destrutivo ao vivo (13 universos/histórias reais no sistema, sem escopo por universo no reset). **Confirmado ao vivo pelo usuário após Publish (2026-07-17): funcionando.**
 
+## Landing page pública — `/landing` (2026-07-17)
+
+A pedido do usuário: landing de marketing pra atrair entusiastas de RPG, leitura e multiverso/IA. Checkpoint `6a59c43452283ff45c4547a8`.
+
+- **Roteamento público**: `src/App.jsx` ganhou `PUBLIC_PATHS = ['/landing']`, checado no topo de `App()` **antes** do `AuthProvider` — renderiza um `<Routes>` isolado (só `QueryClientProvider`+`Router`, sem auth) pra essa rota, mesmo padrão já usado no app-irmão Patrimônios AMZ (`appId 69b9bbe612ad0c22812b5339`). `/` (Home autenticada) continua idêntico, sem nenhuma mudança.
+- **Fundo interativo** `src/components/landing/GraphParticleBackground.jsx`: canvas com nós coloridos usando as MESMAS 8 cores do Megagrafo real (`TIPO_CORES` de `src/components/graph/graphUtils.js` — reaproveitado, não duplicado), conectados por arestas finas quando próximos (visual de grafo), com repulsão suave ao cursor + uma aresta de destaque (âmbar) ligando nós próximos até o próprio ponteiro do mouse. Respeita `prefers-reduced-motion`. Adaptado do `FluidBackground.jsx` do Patrimônios (mesmo ciclo de vida canvas/RAF/resize/cleanup), recolorido pra parecer o grafo do produto, não um fundo genérico.
+- **Conteúdo** (`src/pages/Landing.jsx` + `src/components/landing/sections/*.jsx`): Hero ("Seu multiverso tem vida própria"), Facts strip, 6 Pilares (Vozes Únicas, Memórias-Flashback, Nascidos de Lembranças, Objetos & Cenários Duráveis, Bastidores Vivos, Grafo Omniversal 3D — todos recursos reais, não promessas), 3 cards de público-alvo (RPG / leitura-escrita / multiverso e IA), Comparativo vs. "chat de RPG genérico", Preços (reaproveita `PACOTES`/`formatBRL` de `src/components/billing/pricing.js` — fonte única, nunca diverge do Mercado Multiversal real), FAQ, CTA final. Todos os CTAs chamam `base44.auth.redirectToLogin("/")`.
+- **Rodapé institucional AMZ**: `src/lib/company.js` (novo, dados portados do Patrimônios: Mateus da Silva Gonçalves · Amz Data Software · CNPJ 53.646.811/0001-20 · ceo@amzdatasoftware.com · (91) 98134-2990) + `src/components/landing/LandingFooter.jsx`.
+- Verificado: ESLint limpo, `vite build` verde, bundle confirmado com headline/preços/dados da empresa via grep. **Sem tool de preview ao vivo neste MCP** — a verificação visual (fundo reagindo ao mouse, responsividade) fica pro usuário conferir em `/landing` após o Publish.
+- Fora de escopo (não pedido): páginas de Termos/Privacidade; tornar `/` pública.
+
 ## Universo de teste (mantido de propósito)
 
 **`Teste_Gap4_Bastidores`** (universe_id `6a591ccbaa734aa83561f81c`) — história `Teste Gap 4 — Bastidores` (`6a591cf3607a644cc7790ce3`), com personagens `Lyra_Teste`, `Bram_Teste`, `Nara_Teste`, `Doran_Teste`, `Irmã de Lyra` (nascida de memória). **Mantido intencionalmente** como laboratório pra testes futuros de Mundo Vivo/hierarquia de locais — não é um universo de conteúdo real do usuário.
@@ -71,6 +82,7 @@ Tudo commitado no sandbox e sincronizado no GitHub (`main`). **Publish no builde
 
 ## Checkpoints Base44 desta sessão (mais recente primeiro)
 
+- `6a59c43452283ff45c4547a8` — landing page pública /landing com fundo de partículas-grafo
 - `6a59ae33f9ed5c719e37d9bf` — botão "Reset do Sistema" (/admin) + Mega Livro de backup automático
 - `6a598f6c4b59f7090410bcc4` — livro PDF: compilação por capítulos sem limite + 3 estilos + MEMORIA/OFFSCREEN no compilador
 - `6a597c8818b98a3c172a1950` — fix de match flexível de nome no subconjunto (validado ao vivo logo em seguida)
