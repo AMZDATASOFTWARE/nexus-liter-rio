@@ -12,6 +12,7 @@ import StoryPage from './pages/StoryPage';
 import KnowledgePage from './pages/KnowledgePage';
 import GraphPage from './pages/GraphPage';
 import WorkspacePage from './pages/WorkspacePage';
+import AdminPage from './pages/AdminPage';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
@@ -45,6 +46,7 @@ const AuthenticatedApp = () => {
       <Route path="/conhecimento" element={<KnowledgePage />} />
       <Route path="/grafo/:universeId" element={<GraphPage />} />
       <Route path="/workspace/:id" element={<WorkspacePage />} />
+      <Route path="/admin" element={<AdminPage />} />
       <Route path="*" element={<PageNotFound />} />
     </Routes>
   );
