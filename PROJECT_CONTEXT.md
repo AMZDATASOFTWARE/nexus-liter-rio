@@ -3,7 +3,7 @@
 > Checkpoint documental do estado do projeto. Atualizado a cada bloco relevante de trabalho concluído.
 > Mantido em paridade em 3 lugares: este arquivo local, a cópia no sandbox Base44, e a memória do projeto (Claude).
 
-**Última atualização: 2026-07-17 — Referências de personagem (imagem/PDF) para consistência entre capítulos, na escrita e na ilustração.**
+**Última atualização: 2026-07-17 — Fix de tela branca no Workspace (grafo 3D) + Error Boundary como rede de segurança geral.**
 
 ## O que foi feito nesta sessão
 
@@ -112,6 +112,18 @@ A pedido do usuário: manter características dos personagens consistentes entre
 - Fora de escopo (documentado): injeção em `alocarPersonagens` (forja inicial); edição/exclusão de assets já enviados.
 - Verificado: `node --check` nas 4 funções tocadas/novas, JSON do schema validado (`list_entity_schemas` confirmou), ESLint limpo, `vite build` verde. **Não testei upload/análise ao vivo** — `UploadFile`+`InvokeLLM`/`ExtractDataFromUploadedFile` têm custo real; teste ponta a ponta combinado com o usuário após o Publish.
 
+## Fix: tela branca no Workspace ao interagir com o Megagrafo (2026-07-17)
+
+Usuário reportou que, na tela `/workspace/:id` (StoryPage + GraphPage lado a lado), interagir com certos botões ou com o Megagrafo deixava a tela toda branca, só resolvendo com reload — e só acontecia nas versões publicadas. Checkpoint `6a5a72366b22c3c60c1ee51f`.
+
+**Causa raiz**: `GraphPage.jsx` troca entre `ForceGraph`/`SphereGraph3D`/`TemporalGraph3D` via render condicional pelos botões "2D"/"Esfera 3D"/"Camadas Temporais" — desmontando por completo o componente 3D anterior a cada troca. Tanto `SphereGraph3D.jsx` quanto `TemporalGraph3D.jsx` faziam, no cleanup do efeito Three.js: `el.removeChild(renderer.domElement)` **sem checar se o nó ainda era filho de `el` naquele momento** — lança `NotFoundError` sempre que o React já tinha alterado o DOM antes da limpeza rodar. Sem **nenhum Error Boundary** no app inteiro (confirmado: zero ocorrências de `componentDidCatch`/`getDerivedStateFromError`), esse erro não tratado fazia o React desmontar a árvore inteira — e só aparecia em produção porque o modo dev intercepta erros de render num overlay em vez de deixar a tela em branco.
+
+**Fix**:
+- `SphereGraph3D.jsx` e `TemporalGraph3D.jsx`: `if (el.contains(renderer.domElement)) el.removeChild(renderer.domElement);` — guarda defensiva padrão pra esse tipo de bug de ciclo de vida Three.js/React.
+- **Novo `src/components/ErrorBoundary.jsx`**: rede de segurança geral — captura qualquer erro de render não tratado e mostra uma UI recuperável ("Algo quebrou nesta tela" + botão "Tentar novamente") em vez de branquear tudo. Envolvendo as `Routes` inteiras em `App.jsx`.
+- `WorkspacePage.jsx`: cada painel (`PanelView`) ganhou seu **próprio** `ErrorBoundary` (com `key={view}` pra resetar ao trocar de aba) — um erro no painel do Megagrafo não derruba mais o painel de escrita ao lado.
+- Verificado: ESLint limpo, vite build verde, texto da UI de erro confirmado no bundle.
+
 ## Universo de teste (mantido de propósito)
 
 **`Teste_Gap4_Bastidores`** (universe_id `6a591ccbaa734aa83561f81c`) — história `Teste Gap 4 — Bastidores` (`6a591cf3607a644cc7790ce3`), com personagens `Lyra_Teste`, `Bram_Teste`, `Nara_Teste`, `Doran_Teste`, `Irmã de Lyra` (nascida de memória). **Mantido intencionalmente** como laboratório pra testes futuros de Mundo Vivo/hierarquia de locais — não é um universo de conteúdo real do usuário.
@@ -129,6 +141,7 @@ Tudo commitado no sandbox e sincronizado no GitHub (`main`). **Publish no builde
 
 ## Checkpoints Base44 desta sessão (mais recente primeiro)
 
+- `6a5a72366b22c3c60c1ee51f` — fix tela branca no Workspace (removeChild sem containment check) + ErrorBoundary
 - `6a5a6f37f166c421d4f10e04` — referências de personagem (CharacterAsset) para consistência entre capítulos
 - `6a5a2e11557d90cb20b2ddf6` — capa full-bleed com recorte cover + gradiente + PDF assíncrono
 - `6a5a2a53262a7b5d5a019a95` — fix raiz: createPortal no BookExporter/PolishingStudio (containing block do backdrop-blur do header)
