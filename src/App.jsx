@@ -6,6 +6,7 @@ import PageNotFound from './lib/PageNotFound';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 import ScrollToTop from './components/ScrollToTop';
+import ErrorBoundary from './components/ErrorBoundary';
 // Add page imports here
 import Home from './pages/Home';
 import StoryPage from './pages/StoryPage';
@@ -43,16 +44,18 @@ const AuthenticatedApp = () => {
 
   // Render the main app
   return (
-    <Routes>
-      {/* Add your page Route elements here */}
-      <Route path="/" element={<Home />} />
-      <Route path="/historia/:id" element={<StoryPage />} />
-      <Route path="/conhecimento" element={<KnowledgePage />} />
-      <Route path="/grafo/:universeId" element={<GraphPage />} />
-      <Route path="/workspace/:id" element={<WorkspacePage />} />
-      <Route path="/admin" element={<AdminPage />} />
-      <Route path="*" element={<PageNotFound />} />
-    </Routes>
+    <ErrorBoundary>
+      <Routes>
+        {/* Add your page Route elements here */}
+        <Route path="/" element={<Home />} />
+        <Route path="/historia/:id" element={<StoryPage />} />
+        <Route path="/conhecimento" element={<KnowledgePage />} />
+        <Route path="/grafo/:universeId" element={<GraphPage />} />
+        <Route path="/workspace/:id" element={<WorkspacePage />} />
+        <Route path="/admin" element={<AdminPage />} />
+        <Route path="*" element={<PageNotFound />} />
+      </Routes>
+    </ErrorBoundary>
   );
 };
 
