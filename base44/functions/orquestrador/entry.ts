@@ -167,7 +167,7 @@ ${antigas.map((m) => `- ${m.content}`).join('\n')}`,
 }
 
 // ----- Superagente Hospedeiro: personifica um personagem consultando apenas suas memórias isoladas -----
-async function invocarSuperagente(sdk, character, acaoRequerida, contextoAtual, isPov, ritmoAtual = { peso_introspeccao: 50 }) {
+async function invocarSuperagente(sdk, character, acaoRequerida, contextoAtual, isPov, ritmoAtual = { peso_introspeccao: 50 }, descricaoAparencia = '') {
   const memorias = await sdk.entities.CharacterMemory.filter({ character_id: character.id }, '-created_date', 15);
   memorias.reverse();
   const bancoMemoria = memorias.map((m) => `- ${m.content}`).join('\n') || (character.primeira_memoria ? `- ${character.primeira_memoria}` : '- (sem memórias registradas ainda)');
@@ -185,6 +185,7 @@ SISTEMA DE VOZ ÚNICA — IDENTIDADE VERBAL E MENTAL DE ${character.name}:
 [VERBOSIDADE (1 a 10)]: ${character.verbosidade || 5}
 [ESTILO DE PENSAMENTO]: ${character.estilo_pensamento || 'Lógico'}
 [PESO DE INTROSPECÇÃO DA CENA ATUAL]: ${ritmoAtual.peso_introspeccao}%
+${descricaoAparencia ? `[REFERÊNCIA CÔNICA DE APARÊNCIA — respeite estritamente ao descrever este personagem fisicamente]: ${descricaoAparencia}` : ''}
 
 DIRETRIZES DE ATUAÇÃO OBRIGATÓRIAS (METHOD ACTING):
 - LEI DA VERBOSIDADE: Se sua verbosidade for baixa (1-3), você DEVE responder com no máximo 10 palavras, focando em linguagem corporal. Se for alta (8-10), seja extremamente prolixo, divague e fale demais.
@@ -531,7 +532,7 @@ Deno.serve(async (req) => {
     }
 
     // ----- Estado atual da aplicação -----
-    let story = null, universe = null, characters = [], blocks = [], todosUniversos = [];
+    let story = null, universe = null, characters = [], blocks = [], todosUniversos = [], characterAssets = [];
     if (storyId) {
       story = await sdk.entities.Story.get(storyId);
       universe = await sdk.entities.Universe.get(story.universe_id);
@@ -539,6 +540,7 @@ Deno.serve(async (req) => {
       blocks = await sdk.entities.NarrativeBlock.filter({ story_id: storyId }, '-created_date', 8);
       blocks.reverse();
       todosUniversos = await sdk.entities.Universe.list(undefined, 100);
+      try { characterAssets = await sdk.entities.CharacterAsset.filter({ universe_id: story.universe_id }); } catch (_e) { characterAssets = []; }
     }
 
     // ----- Interceptador de Ritmo: o usuário como Diretor de Cinema -----
