@@ -21,7 +21,7 @@ export function generateBookPdf(livro, html) {
   doc.text(doc.splitTextToSize(livro.titulo_capitulo || "", maxW), pageW / 2, pageH / 3 + 10 + tituloLinhas.length * 9, { align: "center" });
   doc.setFont("times", "normal");
   doc.setFontSize(9);
-  doc.text("Base 44 · Motor Narrativo Multiversal", pageW / 2, pageH - margin, { align: "center" });
+  doc.text("Nexus Literário · Motor Narrativo Multiversal", pageW / 2, pageH - margin, { align: "center" });
 
   // ----- Corpo: percorre os blocos HTML do editor -----
   doc.addPage();
