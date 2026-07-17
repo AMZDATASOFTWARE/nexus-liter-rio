@@ -87,7 +87,7 @@ export async function generateBookPdf(livro, html, capaBase64) {
   // ----- Página de título -----
   if (capaBase64) {
     await desenharCapaComIlustracao(doc, livro, capaBase64, pageW, pageH, maxW);
-    doc.setTextColor(200, 200, 205); // ré sobre o gradiente escuro que cobre a base da capa
+    doc.setTextColor(200, 200, 205); // legivel sobre o gradiente escuro que cobre a base da capa
   } else {
     desenharCapaSemIlustracao(doc, livro, pageW, pageH, maxW);
   }
