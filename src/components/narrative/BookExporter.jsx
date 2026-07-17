@@ -67,7 +67,7 @@ export default function BookExporter({ storyId }) {
 
       {escolhendo && (
         <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => !compilando && setEscolhendo(false)}>
-          <div className="w-full max-w-md rounded-xl border border-zinc-800 bg-[#0b0b14] p-5 shadow-2xl shadow-black/60" onClick={(e) => e.stopPropagation()}>
+          <div className="w-full max-w-md max-h-[85vh] overflow-y-auto rounded-xl border border-zinc-800 bg-[#0b0b14] p-5 shadow-2xl shadow-black/60" onClick={(e) => e.stopPropagation()}>
             <h3 className="font-display text-lg text-zinc-100">Estilo de compilação</h3>
             <p className="text-[11px] text-zinc-500 mb-4">Como os flashbacks e os bastidores do mundo vivo entram no livro final</p>
 
