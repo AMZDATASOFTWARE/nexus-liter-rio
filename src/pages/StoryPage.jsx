@@ -169,14 +169,14 @@ export default function StoryPage({ storyIdProp }) {
         </main>
         {showChars && !isNew && (
           <aside className="hidden md:block w-64 shrink-0 py-10 pb-44">
-            <CharacterPanel characters={characters} povName={story?.current_pov_name} inScene={story?.characters_in_scene || []} />
+            <CharacterPanel characters={characters} povName={story?.current_pov_name} inScene={story?.characters_in_scene || []} universeId={story?.universe_id} />
           </aside>
         )}
       </div>
 
       {showChars && !isNew && (
         <div className="md:hidden fixed inset-x-0 bottom-28 z-30 max-h-64 overflow-y-auto bg-[#0b0b14] border-t border-zinc-800 px-5 py-4">
-          <CharacterPanel characters={characters} povName={story?.current_pov_name} inScene={story?.characters_in_scene || []} />
+          <CharacterPanel characters={characters} povName={story?.current_pov_name} inScene={story?.characters_in_scene || []} universeId={story?.universe_id} />
         </div>
       )}
 
