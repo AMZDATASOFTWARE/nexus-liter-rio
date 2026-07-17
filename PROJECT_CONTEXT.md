@@ -3,7 +3,7 @@
 > Checkpoint documental do estado do projeto. Atualizado a cada bloco relevante de trabalho concluído.
 > Mantido em paridade em 3 lugares: este arquivo local, a cópia no sandbox Base44, e a memória do projeto (Claude).
 
-**Última atualização: 2026-07-17 — Landing page pública em `/landing`, com fundo de partículas-grafo interativo.**
+**Última atualização: 2026-07-17 — Ilustração de capa gerada por IA nos PDFs, com estilo classificado automaticamente por universo.**
 
 ## O que foi feito nesta sessão
 
@@ -69,6 +69,20 @@ A pedido do usuário: landing de marketing pra atrair entusiastas de RPG, leitur
 - **Fix (2026-07-17)**: o canvas do fundo aparecia como uma caixinha de ~300x150px no canto superior esquerdo em vez de cobrir a tela. Causa: `<canvas>` é um elemento substituído no CSS — `position: fixed; inset: 0` sozinho não o estica (mantém o tamanho intrínseco padrão), diferente de uma div comum. Fix: adicionado `w-full h-full` explicito no className passado em `Landing.jsx`. Checkpoint `6a59c59554077b861bbf2aca`.
 - **Reescrita do efeito visual (2026-07-17)**, a pedido do usuário (referências: imagem de lente gravitacional / buraco negro deformando uma malha, e uma nebulosa estelar): `GraphParticleBackground.jsx` agora tem 3 camadas: (1) estrelas de fundo com cintilação, estáticas (profundidade); (2) **malha de "espaço-tempo"** — grade de linhas que se curva de verdade em direção ao cursor dentro de um raio de gravidade (função de queda quadrática), com um brilho radial no ponto do cursor; (3) grafo do multiverso (nos coloridos com as 8 cores do `TIPO_CORES`) sendo **puxado** pela gravidade do mouse (não mais repelido), com arestas entre nós próximos e uma aresta de destaque âmbar até o cursor. Checkpoint `6a59da120da843ca77b9c3eb`. Verificado: ESLint limpo, vite build verde, cores confirmadas no bundle via grep. Conferência visual final (curvatura da malha, atração dos nós) fica pro usuário após novo Publish.
 
+## Ilustração de capa por IA (2026-07-17)
+
+A pedido do usuário, com pesquisa de referência extensiva antes de planejar (Storyloft, técnica Style Prompt/Content Prompt de Zimmerman, NovelAI, IP-Adapter/LoRA/`--cref` do Midjourney). Checkpoint `6a5a22df4aa52c9fbdd603fc`.
+
+- **Descoberta chave da pesquisa**: `sdk.integrations.Core.GenerateImage({ prompt })` é a única capacidade de geração de imagem do Base44 — puro texto→imagem (PNG ~1024px), **sem suporte a imagem de referência/personagem** (nada equivalente a IP-Adapter/LoRA/`--cref`). Por isso, consistência de PERSONAGEM entre ilustrações ficou **fora de escopo** (exigiria API externa com chave própria); o MVP entrega consistência de ESTILO (mesma paleta/técnica) via um "Style Prompt" fixo por universo.
+- **Decisões do usuário**: motor nativo do Base44 (sem API externa); escopo só capa (não por capítulo); estilo classificado automaticamente por IA e salvo no `Universe` (não por história).
+- **`base44/entities/Universe.jsonc`**: novo campo `estilo_visual_ilustracao` — vazio até a 1ª ilustração gerada daquele universo, depois fixo e reaproveitado por todas as histórias dele.
+- **Nova função `base44/functions/ilustrarCapa/entry.ts`**: catálogo fixo de 8 estilos (`cyberpunk`, `infantil`, `anime`, `fantasia_epica`, `noir_sombrio`, `aquarela_poetico`, `faroeste_empoeirado`, `cosmico_etereo`), cada um um "Style Prompt" escrito à mão (técnica/paleta/luz/enquadramento, sem mencionar conteúdo — separação Style/Content de Zimmerman). Se o universo ainda não tem estilo, 1 `InvokeLLM` classifica a partir de `Universe.rules`+`Story.title` e salva; sempre 1 `InvokeLLM` gera o "Content Prompt" (cena da capa) a partir do título/regras/trecho compilado; prompt final = Style+Content → `GenerateImage` → a URL retornada é baixada **no próprio backend** (evita CORS) e convertida pra base64. Tudo em try/catch — recusa de política de conteúdo ou falha de rede não quebra a exportação, só retorna erro.
+- **`src/components/narrative/PolishingStudio.jsx`**: novo botão "Gerar ilustração de capa" (só aparece quando `storyId` é passado — por isso invisível no Mega Livro do Reset do Sistema, que compila várias histórias de uma vez e não tem 1 `storyId` único), preview da imagem + label do estilo detectado + "Gerar outra versão" (re-roll). Totalmente opcional — sem gerar, publica só com texto como antes.
+- **`src/components/narrative/bookPdf.js`**: `generateBookPdf(livro, html, capaBase64)` — com capa, usa `doc.getImageProperties` pra dimensionar sem distorcer e desenha ocupando até 42% da altura da página de título (A5), empurrando universo/título/capítulo pra baixo dela; sem capa, comportamento idêntico ao anterior.
+- **`src/components/narrative/BookExporter.jsx`**: passa `storyId` pro `PolishingStudio` (antes não passava).
+- **Fora de escopo documentado**: ilustração por capítulo (mesma mecânica, repetir por `h1`); consistência de personagem (precisaria de API externa); seleção manual de estilo pelo usuário (hoje só auto-classificado).
+- Verificado: `node --check` na função nova, JSON do schema validado, campo confirmado via `list_entity_schemas`, ESLint limpo, `vite build` verde com a UI nova no bundle. **Não testei a geração de imagem ao vivo** — `GenerateImage` consome créditos reais / chama um provedor de IA de verdade, então esse teste fica combinado com o usuário antes de disparar, preferencialmente no universo-laboratório após o Publish.
+
 ## Universo de teste (mantido de propósito)
 
 **`Teste_Gap4_Bastidores`** (universe_id `6a591ccbaa734aa83561f81c`) — história `Teste Gap 4 — Bastidores` (`6a591cf3607a644cc7790ce3`), com personagens `Lyra_Teste`, `Bram_Teste`, `Nara_Teste`, `Doran_Teste`, `Irmã de Lyra` (nascida de memória). **Mantido intencionalmente** como laboratório pra testes futuros de Mundo Vivo/hierarquia de locais — não é um universo de conteúdo real do usuário.
@@ -86,6 +100,7 @@ Tudo commitado no sandbox e sincronizado no GitHub (`main`). **Publish no builde
 
 ## Checkpoints Base44 desta sessão (mais recente primeiro)
 
+- `6a5a22df4aa52c9fbdd603fc` — ilustração de capa por IA (Core.GenerateImage + catalogo de 8 estilos + Universe.estilo_visual_ilustracao)
 - `6a59da120da843ca77b9c3eb` — fundo da landing reescrito: malha de espaço-tempo curvável + estrelas + multiverso com gravidade real
 - `6a59c59554077b861bbf2aca` — fix do tamanho do canvas do fundo (w-full h-full)
 - `6a59c43452283ff45c4547a8` — landing page pública /landing com fundo de partículas-grafo
