@@ -2,11 +2,8 @@ import React, { useState, useRef } from "react";
 import { BookDown, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
-import { base44 } from "@/api/base44Client";
 import PolishingStudio from "./PolishingStudio";
-
-// Quantos blocos narrativos entram em cada capítulo compilado (1 chamada de LLM por capítulo)
-const BLOCOS_POR_CAPITULO = 24;
+import { compilarCapitulosDaHistoria, juntarCapitulosEmLivro } from "./compilarLivro";
 
 const MODOS = [
   {
@@ -35,55 +32,13 @@ export default function BookExporter({ storyId }) {
   const { toast } = useToast();
   const compilando = progresso !== null;
 
-  const invocarComRetry = async (payload) => {
-    try {
-      return await base44.functions.invoke("exportarLivro", payload);
-    } catch {
-      return await base44.functions.invoke("exportarLivro", payload);
-    }
-  };
-
   const compilar = async () => {
     canceladoRef.current = false;
     setProgresso({ atual: 0, total: 0 });
     try {
-      const man = await base44.functions.invoke("exportarLivro", { storyId, manifesto: true, modoCompilacao: modo });
-      const total = man.data.total_de_blocos_uteis;
-      const totalPartes = Math.max(1, Math.ceil(total / BLOCOS_POR_CAPITULO));
-
-      const capitulos = [];
-      let contextoAnterior = null;
-      for (let i = 0; i < totalPartes; i++) {
-        if (canceladoRef.current) return;
-        setProgresso({ atual: i + 1, total: totalPartes });
-        const res = await invocarComRetry({
-          storyId,
-          modoCompilacao: modo,
-          blocoInicio: i * BLOCOS_POR_CAPITULO,
-          blocoFim: Math.min((i + 1) * BLOCOS_POR_CAPITULO, total),
-          contextoAnterior,
-          parte: i + 1,
-          totalPartes,
-        });
-        capitulos.push(res.data);
-        contextoAnterior = res.data.resumo_para_continuidade || null;
-      }
-      if (canceladoRef.current) return;
-
-      const primeiro = capitulos[0];
-      const markdown =
-        totalPartes === 1
-          ? primeiro.texto_compilado_markdown
-          : capitulos
-              .map((c, i) => `# Capítulo ${i + 1} — ${c.titulo_capitulo || ""}\n\n${c.texto_compilado_markdown}`)
-              .join("\n\n");
-
-      setLivro({
-        titulo_historia: primeiro.titulo_historia,
-        nome_universo: primeiro.nome_universo,
-        titulo_capitulo: totalPartes === 1 ? primeiro.titulo_capitulo : `Livro completo · ${totalPartes} capítulos`,
-        texto_compilado_markdown: markdown,
-      });
+      const capitulos = await compilarCapitulosDaHistoria(storyId, modo, setProgresso, () => canceladoRef.current);
+      if (!capitulos) return;
+      setLivro(juntarCapitulosEmLivro(capitulos));
       setEscolhendo(false);
     } catch (e) {
       toast({ title: "Falha ao compilar o livro", description: e.response?.data?.error || e.message, variant: "destructive" });
