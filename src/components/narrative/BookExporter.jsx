@@ -1,4 +1,5 @@
 import React, { useState, useRef } from "react";
+import { createPortal } from "react-dom";
 import { BookDown, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
@@ -65,7 +66,7 @@ export default function BookExporter({ storyId }) {
         <BookDown className="w-4 h-4" />
       </Button>
 
-      {escolhendo && (
+      {escolhendo && createPortal(
         <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => !compilando && setEscolhendo(false)}>
           <div className="w-full max-w-md max-h-[85vh] overflow-y-auto rounded-xl border border-zinc-800 bg-[#0b0b14] p-5 shadow-2xl shadow-black/60" onClick={(e) => e.stopPropagation()}>
             <h3 className="font-display text-lg text-zinc-100">Estilo de compilação</h3>
@@ -119,7 +120,8 @@ export default function BookExporter({ storyId }) {
               </div>
             )}
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {livro && <PolishingStudio livro={livro} storyId={storyId} onClose={() => setLivro(null)} />}
