@@ -3,11 +3,13 @@ import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { base44 } from "@/api/base44Client";
 import { motion } from "framer-motion";
-import { Sparkles, BookOpen, LayoutDashboard, BookMarked } from "lucide-react";
+import { Sparkles, BookOpen, LayoutDashboard, BookMarked, Shield } from "lucide-react";
 import GlitchWrapper from "@/components/GlitchWrapper";
 import GlitchSound from "@/components/GlitchSound";
+import { useAuth } from "@/lib/AuthContext";
 
 export default function Home() {
+  const { user } = useAuth();
   const { data: stories = [], isLoading } = useQuery({
     queryKey: ["stories"],
     queryFn: () => base44.entities.Story.list("-updated_date", 50),
@@ -21,6 +23,15 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-[#08080f] text-zinc-100">
       <GlitchSound />
+      {user?.role === "admin" && (
+        <Link
+          to="/admin"
+          title="Administração"
+          className="fixed top-4 right-4 z-20 p-2 rounded-lg border border-zinc-800 text-zinc-600 hover:text-red-300 hover:border-red-500/40 transition-colors"
+        >
+          <Shield className="w-4 h-4" />
+        </Link>
+      )}
       <div className="max-w-3xl mx-auto px-6 py-20 md:py-28">
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="text-center space-y-6">
           <GlitchWrapper>
