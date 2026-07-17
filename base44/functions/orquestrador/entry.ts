@@ -1,5 +1,15 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.38';
 
+// ----- Referência canônica de aparência: descrições extraídas de imagens/PDFs enviados p/ o personagem -----
+function descricaoAparenciaDe(nome, assets) {
+  if (!nome || !assets?.length) return '';
+  return assets
+    .filter((a) => a.character_name === nome || (nome.length > 3 && (a.character_name || '').includes(nome)) || (nome.length > 3 && nome.includes(a.character_name || '')))
+    .map((a) => a.descricao_extraida)
+    .filter(Boolean)
+    .join(' ');
+}
+
 // ----- Casamento fuzzy de local (fallback): usado só quando o Diretor não resolve a identidade hierárquica -----
 function mesmoLocal(a, b) {
   const na = (a || '').toLowerCase().trim();
