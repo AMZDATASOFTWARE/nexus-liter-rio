@@ -24,7 +24,7 @@ const MODOS = [
   },
 ];
 
-export default function BookExporter({ storyId }) {
+export default function BookExporter({ storyId, universeId }) {
   const [escolhendo, setEscolhendo] = useState(false);
   const [modo, setModo] = useState("integrado");
   const [progresso, setProgresso] = useState(null); // { atual, total } durante a compilação
@@ -130,6 +130,7 @@ export default function BookExporter({ storyId }) {
         <PolishingStudio
           livro={livro}
           storyId={storyId}
+          universeId={universeId}
           capitulosBrutos={capitulosBrutos}
           onClose={() => setLivro(null)}
         />
