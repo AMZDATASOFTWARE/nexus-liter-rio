@@ -14,7 +14,7 @@ import FinalCtaSection from "@/components/landing/sections/FinalCtaSection";
 export default function Landing() {
   return (
     <div className="relative min-h-screen bg-[#08080f] text-zinc-100 overflow-hidden">
-      <GraphParticleBackground className="fixed inset-0 z-0" />
+      <GraphParticleBackground className="fixed inset-0 z-0 w-full h-full" />
 
       <div className="relative z-10">
         <nav className="sticky top-0 z-20 backdrop-blur-xl bg-[#08080f]/80 border-b border-zinc-900">
