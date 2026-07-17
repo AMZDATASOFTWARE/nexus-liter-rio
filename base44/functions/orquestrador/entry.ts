@@ -1388,7 +1388,8 @@ PERSONAGENS E AGENTES BASE44: ${characters.map((c) => `${c.name} → ${c.superag
         const subconjunto = sincronizacao.cenario_identidade?.sublocal_dentro_de && (sincronizacao.cenario_identidade?.personagens_no_sublocal || []).length
           ? sincronizacao.cenario_identidade.personagens_no_sublocal
           : null;
-        const presentes = characters.filter((c) => cenaFinal.includes(c.name) && (!subconjunto || subconjunto.includes(c.name)));
+        const noSubconjunto = (nome) => subconjunto.some((n) => n === nome || (n.length > 3 && (n.includes(nome) || nome.includes(n))));
+        const presentes = characters.filter((c) => cenaFinal.includes(c.name) && (!subconjunto || noSubconjunto(c.name)));
         await Promise.all(
           presentes.filter((c) => c.localizacao_atual !== cenarioNome).map((c) => sdk.entities.Character.update(c.id, { localizacao_atual: cenarioNome }))
         );
