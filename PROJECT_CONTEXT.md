@@ -3,7 +3,7 @@
 > Checkpoint documental do estado do projeto. Atualizado a cada bloco relevante de trabalho concluído.
 > Mantido em paridade em 3 lugares: este arquivo local, a cópia no sandbox Base44, e a memória do projeto (Claude).
 
-**Última atualização: 2026-07-17 — Ilustração de capa gerada por IA nos PDFs, com estilo classificado automaticamente por universo.**
+**Última atualização: 2026-07-17 — Referências de personagem (imagem/PDF) para consistência entre capítulos, na escrita e na ilustração.**
 
 ## O que foi feito nesta sessão
 
@@ -91,6 +91,27 @@ Usuário reportou que o card "Estilo de compilação" aparecia cortado no topo, 
 
 **Fix real** (checkpoint `6a5a2a53262a7b5d5a019a95`): `BookExporter.jsx` e `PolishingStudio.jsx` agora usam `createPortal(..., document.body)` pra renderizar seus overlays `fixed` diretamente como filhos de `<body>`, imunes a qualquer containing-block de ancestrais. O fix de `max-h`/`overflow-y-auto` anterior foi mantido (não fazia mal, só não era a causa raiz).
 
+## Capa full-bleed + fix de PDF assíncrono (2026-07-17)
+
+Usuário pediu que a ilustração ficasse posicionada como uma capa de livro de verdade (imagem cobrindo a página inteira, título sobreposto), não empilhada acima do texto. Checkpoint `6a5a2e11557d90cb20b2ddf6`.
+
+- `bookPdf.js`: nova função `recortarImagemParaCapa` (crop "cover" via canvas intermediário — preenche a página inteira sem distorcer, cortando o excesso) + `desenharCapaComIlustracao` (imagem full-bleed, gradiente escuro na base via `doc.setGState(new doc.GState({opacity}))` — confirmado suportado nesta versão do jsPDF — título/universo/capítulo sobrepostos em branco). `generateBookPdf` agora é **assíncrona** (o recorte via canvas exige carregar a imagem primeiro).
+- `PolishingStudio.jsx`: `publicar()` agora `await`s `generateBookPdf`, com estado `publicando` (botão mostra "Gerando PDF...") e try/catch pra erro de carregamento de imagem.
+- Verificado: ESLint limpo, vite build verde, `GState`/`recortarImagemParaCapa` confirmados no bundle.
+
+## Referências de personagem — imagem/PDF para consistência (2026-07-17)
+
+A pedido do usuário: manter características dos personagens consistentes entre capítulos (escrita e ilustração). Checkpoint `6a5a6f37f166c421d4f10e04`.
+
+- **Descoberta chave da pesquisa**: o SDK do Base44 já resolve isso sem API externa — `Core.UploadFile({file})` aceita **qualquer arquivo, incluindo PDF**; `Core.InvokeLLM` aceita `file_urls: string[]` (o LLM "vê" e descreve a imagem/PDF); `Core.ExtractDataFromUploadedFile({file_url, json_schema})` extrai dados estruturados de PDF. Estratégia: extrair uma **descrição textual** uma única vez no upload e reaproveitar barato em todo prompt futuro (mesma técnica de "descrição consistente" da pesquisa de ilustração, já que o Base44 não tem geração de imagem com referência visual real).
+- **Nova entidade `base44/entities/CharacterAsset.jsonc`**: biblioteca de múltiplos arquivos por personagem — `universe_id`, `character_name` (casado por texto, mesma convenção do resto do app), `tipo` (`imagem_personagem`\|`pdf_ficha`), `nome_arquivo`, `file_url`, `descricao_extraida`.
+- **Nova função `base44/functions/analisarReferenciaPersonagem/entry.ts`**: upload acontece no frontend (`Core.UploadFile` só aceita `File` do browser); a função só recebe a `fileUrl` pronta — imagem vai por `InvokeLLM` com `file_urls` (descreve aparência física em detalhe); PDF vai por `ExtractDataFromUploadedFile` (aparência + traços marcantes + resumo de histórico) — e cria o `CharacterAsset`.
+- **UI**: novo `src/components/narrative/CharacterAssetsDialog.jsx` (reaproveita `Dialog` do shadcn, já usa Portal do Radix, imune ao bug de containing-block corrigido antes) — lista os assets do personagem + upload. `CharacterPanel.jsx` ganhou um ícone `ImagePlus` por card que abre o diálogo; novo prop `universeId`, passado pelas 2 instâncias em `StoryPage.jsx`.
+- **Consumo — escrita** (paridade orquestrador ↔ simulacaoAutonoma): busca `CharacterAsset` uma vez por turno (mesmo padrão de `characters`/`WorldObject`/`Local`), casa por nome via novo helper `descricaoAparenciaDe`, injeta num bloco "REFERÊNCIA CANÔNICA DE APARÊNCIA" no prompt do Superagente (`invocarSuperagente` no orquestrador; prompt inline equivalente na simulacaoAutonoma).
+- **Consumo — ilustração** (`ilustrarCapa/entry.ts`): casa quais personagens aparecem no título/resumo da capa (substring, mesma convenção fuzzy do resto do código) e inclui as descrições no Content Prompt.
+- Fora de escopo (documentado): injeção em `alocarPersonagens` (forja inicial); edição/exclusão de assets já enviados.
+- Verificado: `node --check` nas 4 funções tocadas/novas, JSON do schema validado (`list_entity_schemas` confirmou), ESLint limpo, `vite build` verde. **Não testei upload/análise ao vivo** — `UploadFile`+`InvokeLLM`/`ExtractDataFromUploadedFile` têm custo real; teste ponta a ponta combinado com o usuário após o Publish.
+
 ## Universo de teste (mantido de propósito)
 
 **`Teste_Gap4_Bastidores`** (universe_id `6a591ccbaa734aa83561f81c`) — história `Teste Gap 4 — Bastidores` (`6a591cf3607a644cc7790ce3`), com personagens `Lyra_Teste`, `Bram_Teste`, `Nara_Teste`, `Doran_Teste`, `Irmã de Lyra` (nascida de memória). **Mantido intencionalmente** como laboratório pra testes futuros de Mundo Vivo/hierarquia de locais — não é um universo de conteúdo real do usuário.
@@ -108,6 +129,8 @@ Tudo commitado no sandbox e sincronizado no GitHub (`main`). **Publish no builde
 
 ## Checkpoints Base44 desta sessão (mais recente primeiro)
 
+- `6a5a6f37f166c421d4f10e04` — referências de personagem (CharacterAsset) para consistência entre capítulos
+- `6a5a2e11557d90cb20b2ddf6` — capa full-bleed com recorte cover + gradiente + PDF assíncrono
 - `6a5a2a53262a7b5d5a019a95` — fix raiz: createPortal no BookExporter/PolishingStudio (containing block do backdrop-blur do header)
 - `6a5a27f46ac870fede2c08ae` — fix (parcial/insuficiente): max-h+overflow-y-auto no modal de estilo de compilação
 - `6a5a22df4aa52c9fbdd603fc` — ilustração de capa por IA (Core.GenerateImage + catalogo de 8 estilos + Universe.estilo_visual_ilustracao)
