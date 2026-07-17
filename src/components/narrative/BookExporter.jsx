@@ -38,7 +38,7 @@ export default function BookExporter({ storyId }) {
   const invocarComRetry = async (payload) => {
     try {
       return await base44.functions.invoke("exportarLivro", payload);
-    } catch (_e) {
+    } catch {
       return await base44.functions.invoke("exportarLivro", payload);
     }
   };
