@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { createPortal } from "react-dom";
 import ReactQuill from "react-quill";
+import { obterPortalRoot } from "@/lib/portalRoot";
 import confetti from "canvas-confetti";
 import { X, BookDown, ImagePlus, Loader2, RefreshCw, BookImage } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -207,6 +208,6 @@ export default function PolishingStudio({ livro, storyId, universeId, capitulosB
         .polishing-paper .ql-editor { padding: 48px 56px 64px; min-height: 60vh; line-height: 1.8; }
       `}</style>
     </div>,
-    document.body
+    obterPortalRoot()
   );
 }
