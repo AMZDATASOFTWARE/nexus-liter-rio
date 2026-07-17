@@ -1,9 +1,10 @@
 import React, { useState } from "react";
 import ReactQuill from "react-quill";
 import confetti from "canvas-confetti";
-import { X, BookDown } from "lucide-react";
+import { X, BookDown, ImagePlus, Loader2, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
+import { base44 } from "@/api/base44Client";
 import { generateBookPdf } from "./bookPdf";
 
 // Converte o Markdown do Compilador de Cânone em HTML inicial para o editor
@@ -25,12 +26,38 @@ const MODULES = {
   toolbar: [[{ header: [1, 2, false] }], ["bold", "italic", "underline"], ["blockquote"], ["clean"]],
 };
 
-export default function PolishingStudio({ livro, onClose }) {
+const NOMES_ESTILO = {
+  cyberpunk: "Cyberpunk",
+  infantil: "Infantil",
+  anime: "Anime",
+  fantasia_epica: "Fantasia Épica",
+  noir_sombrio: "Noir Sombrio",
+  aquarela_poetico: "Aquarela Poético",
+  faroeste_empoeirado: "Faroeste Empoeirado",
+  cosmico_etereo: "Cósmico Etéreo",
+};
+
+export default function PolishingStudio({ livro, storyId, onClose }) {
   const [html, setHtml] = useState(() => markdownParaHtml(livro.texto_compilado_markdown));
+  const [gerandoCapa, setGerandoCapa] = useState(false);
+  const [capa, setCapa] = useState(null); // { imagemBase64, estilo }
   const { toast } = useToast();
 
+  const gerarCapa = async () => {
+    setGerandoCapa(true);
+    try {
+      const textoPlano = html.replace(/<[^>]+>/g, " ").trim();
+      const res = await base44.functions.invoke("ilustrarCapa", { storyId, resumoParaCapa: textoPlano.slice(0, 1500) });
+      setCapa({ imagemBase64: res.data.imagemBase64, estilo: res.data.estilo });
+    } catch (e) {
+      toast({ title: "Falha ao gerar a ilustração", description: e.response?.data?.error || e.message, variant: "destructive" });
+    } finally {
+      setGerandoCapa(false);
+    }
+  };
+
   const publicar = () => {
-    generateBookPdf(livro, html);
+    generateBookPdf(livro, html, capa?.imagemBase64);
     confetti({ particleCount: 180, spread: 90, origin: { y: 0.6 } });
     setTimeout(() => confetti({ particleCount: 120, spread: 120, origin: { x: 0.2, y: 0.4 } }), 300);
     setTimeout(() => confetti({ particleCount: 120, spread: 120, origin: { x: 0.8, y: 0.4 } }), 600);
@@ -53,6 +80,43 @@ export default function PolishingStudio({ livro, onClose }) {
           </Button>
         </div>
       </header>
+
+      {storyId && (
+        <div className="shrink-0 px-6 py-3 border-b border-zinc-900 flex items-center gap-3">
+          {capa ? (
+            <>
+              <img src={capa.imagemBase64} alt="Capa gerada" className="h-14 w-14 object-cover rounded-md border border-zinc-800" />
+              <div className="min-w-0 flex-1">
+                <p className="text-xs text-zinc-400">
+                  Capa gerada · estilo <span className="text-amber-300">{NOMES_ESTILO[capa.estilo] || capa.estilo}</span>
+                </p>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={gerarCapa}
+                disabled={gerandoCapa}
+                className="text-zinc-500 hover:text-zinc-200 hover:bg-zinc-900"
+              >
+                {gerandoCapa ? <Loader2 className="w-3.5 h-3.5 mr-2 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5 mr-2" />}
+                Gerar outra versão
+              </Button>
+            </>
+          ) : (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={gerarCapa}
+              disabled={gerandoCapa}
+              className="border-zinc-800 text-zinc-400 hover:text-amber-300 hover:border-amber-500/40"
+            >
+              {gerandoCapa ? <Loader2 className="w-3.5 h-3.5 mr-2 animate-spin" /> : <ImagePlus className="w-3.5 h-3.5 mr-2" />}
+              {gerandoCapa ? "Gerando ilustração..." : "Gerar ilustração de capa"}
+            </Button>
+          )}
+        </div>
+      )}
+
       <div className="flex-1 overflow-y-auto py-10 px-4">
         <div className="mx-auto max-w-2xl bg-[#faf7f0] rounded-sm shadow-2xl shadow-black/60 min-h-full polishing-paper">
           <ReactQuill theme="snow" value={html} onChange={setHtml} modules={MODULES} />
